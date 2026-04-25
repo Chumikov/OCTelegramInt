@@ -1,0 +1,19 @@
+{
+  "name": "opencode-telegram-integration",
+  "version": "1.0.0",
+  "description": "Telegram bot integration for OpenCode - receive and respond to permission requests and questions remotely",
+  "type": "module",
+  "scripts": {
+    "bot": "npx tsx bot/index.ts",
+    "bot:dev": "npx tsx --watch bot/index.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "grammy": "^1.36.1",
+    "tsx": "^4.19.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "typescript": "^5.7.3"
+  }
+}
