@@ -279,9 +279,7 @@ async function _server(input: PluginInput, options?: PluginOpts) {
 
       for (const resp of responses) {
         status.responseCount++;
-        await processResponse(resp);
 
-        // ACK
         try {
           const ackUrl = `${botResponsesUrl}/${resp.id}`;
           const ackRes = await fetch(ackUrl, { method: "DELETE", headers });
@@ -289,6 +287,8 @@ async function _server(input: PluginInput, options?: PluginOpts) {
         } catch (err) {
           logError(`DELETE /responses/${resp.id} failed:`, err instanceof Error ? err.message : String(err));
         }
+
+        await processResponse(resp);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
