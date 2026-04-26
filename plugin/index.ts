@@ -152,7 +152,7 @@ async function _server(input: PluginInput, options?: PluginOpts) {
 
   async function callOpenCodeApi(method: string, path: string, body?: unknown): Promise<boolean> {
     const url = `${serverUrl.toString()}${path}`;
-    log(`opencode API ${method} ${path}`, body ? JSON.stringify(body).slice(0, 200) : "");
+    log(`opencode API ${method} ${url}`, body ? JSON.stringify(body).slice(0, 200) : "");
     try {
       const t0 = Date.now();
       const res = await fetch(url, {
@@ -181,19 +181,20 @@ async function _server(input: PluginInput, options?: PluginOpts) {
       switch (resp.type) {
         case "permission_reply":
           log(`  -> permission ${resp.requestID}: ${resp.reply}`);
-          await callOpenCodeApi("POST", `/permission/${resp.requestID}/reply`, { reply: resp.reply });
+          await callOpenCodeApi("POST", `/session/${resp.sessionID}/permissions/${resp.requestID}`, { response: resp.reply });
           break;
         case "question_reply":
           log(`  -> question ${resp.requestID}:`, JSON.stringify(resp.answers));
-          await callOpenCodeApi("POST", `/question/${resp.requestID}/reply`, { answers: resp.answers });
+          await callOpenCodeApi("POST", `/session/${resp.sessionID}/prompt_async`, {
+            parts: [{ type: "text", text: resp.answers.flat().join(", ") }],
+          });
           break;
         case "question_reject":
           log(`  -> reject question ${resp.requestID}`);
-          await callOpenCodeApi("POST", `/question/${resp.requestID}/reject`);
           break;
         case "session_prompt":
           log(`  -> session ${resp.sessionID}: "${resp.text?.slice(0, 100)}"`);
-          await callOpenCodeApi("POST", `/session/${resp.sessionID}/chat`, {
+          await callOpenCodeApi("POST", `/session/${resp.sessionID}/prompt_async`, {
             parts: [{ type: "text", text: resp.text }],
           });
           break;

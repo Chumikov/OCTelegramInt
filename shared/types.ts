@@ -75,6 +75,7 @@ export interface BotResponsePermission {
   id: string;
   type: "permission_reply";
   requestID: string;
+  sessionID: string;
   reply: "once" | "always" | "reject";
 }
 

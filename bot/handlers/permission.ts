@@ -1,5 +1,5 @@
 import { Bot, InlineKeyboard } from "grammy";
-import { addPending, addResponse } from "../state.js";
+import { addPending, getPending, addResponse } from "../state.js";
 import {
   formatPermissionMessage,
   formatReplyConfirmation,
@@ -42,10 +42,12 @@ export function registerPermissionCallbacks(bot: Bot): void {
 
     await ctx.answerCallbackQuery({ text: "Принято" });
 
+    const pending = getPending(requestID);
     addResponse({
       id: `perm:${requestID}:${action}`,
       type: "permission_reply",
       requestID,
+      sessionID: pending?.sessionID || "",
       reply: action,
     });
 
