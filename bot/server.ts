@@ -110,6 +110,8 @@ export function createEventServer(bot: Bot) {
         const body = await readBody(req);
         const event: PluginEvent = JSON.parse(body);
 
+        console.log(`[server] Received event type=${event.type} body=${body.slice(0, 500)}`);
+
         switch (event.type) {
           case "register":
             registerServer(event.serverUrl);

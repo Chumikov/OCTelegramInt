@@ -24,16 +24,18 @@ function formatContext(context: ContextMessage[]): string {
 }
 
 export function formatPermissionMessage(payload: PermissionEventPayload): string {
-  const filePath = (payload.metadata.filepath as string) || (payload.metadata.filePath as string) || "—";
+  const meta = payload.metadata || {} as Record<string, unknown>;
+  const filePath = (meta.filepath as string) || (meta.filePath as string) || "—";
   const permType = payload.permission || "unknown";
-  const ctxBlock = formatContext(payload.context);
+  const sessionSlice = payload.sessionID ? payload.sessionID.slice(0, 8) : "unknown";
+  const ctxBlock = formatContext(payload.context || []);
 
   return [
     `<b>🔐 Запрос разрешения</b>`,
     ``,
     `📁 <b>Файл:</b> <code>${escapeHtml(filePath)}</code>`,
     `🔧 <b>Операция:</b> <code>${escapeHtml(permType)}</code>`,
-    `📋 <b>Сессия:</b> <code>${escapeHtml(payload.sessionID.slice(0, 8))}</code>`,
+    `📋 <b>Сессия:</b> <code>${escapeHtml(sessionSlice)}</code>`,
     ctxBlock,
   ].join("\n");
 }
