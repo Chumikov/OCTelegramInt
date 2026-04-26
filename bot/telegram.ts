@@ -9,11 +9,11 @@ import { formatReplyConfirmation } from "./formatters.js";
 export function createBot(): Bot {
   const botOptions: Record<string, any> = {};
   if (config.telegramApiRoot) {
+    const apiRoot = config.telegramApiRoot.replace(/\/$/, "");
     botOptions.client = {
-      apiRoot: config.telegramApiRoot,
-      baseFetchConfig: {
-        headers: { "X-Proxy-Secret": config.telegramProxySecret },
-      },
+      apiRoot: config.telegramProxySecret
+        ? `${apiRoot}/s/${config.telegramProxySecret}`
+        : apiRoot,
     };
   }
   const bot = new Bot(config.telegramBotToken, botOptions);
