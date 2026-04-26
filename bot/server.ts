@@ -4,6 +4,7 @@ import { registerServer } from "./opencode-client.js";
 import { handlePermissionEvent } from "./handlers/permission.js";
 import { handleQuestionEvent } from "./handlers/question.js";
 import { handleSessionIdleEvent, handleSessionErrorEvent } from "./handlers/session.js";
+import { getAllResponses, ackResponse } from "./state.js";
 import type { Bot } from "grammy";
 import { config } from "../config.js";
 import { timingSafeEqual } from "crypto";
@@ -50,16 +51,56 @@ function sendJSON(res: ServerResponse, status: number, data: unknown): void {
   res.end(body);
 }
 
+function matchUrl(url: string | undefined, method: string): { action: string; param?: string } | null {
+  if (!url) return null;
+
+  if (method === "GET" && url === "/health") return { action: "health" };
+  if (method === "POST" && url === "/event") return { action: "event" };
+  if (method === "GET" && url === "/responses") return { action: "list_responses" };
+
+  const ackMatch = url.match(/^\/responses\/(.+)$/);
+  if (method === "DELETE" && ackMatch) return { action: "ack_response", param: ackMatch[1] };
+
+  return null;
+}
+
 export function createEventServer(bot: Bot) {
   const chatID = parseInt(config.allowedChatID, 10);
 
   const server = createServer(async (req, res) => {
-    if (req.method === "GET" && req.url === "/health") {
+    const route = matchUrl(req.url, req.method!);
+
+    if (!route) {
+      sendJSON(res, 404, { error: "Not found" });
+      return;
+    }
+
+    if (route.action === "health") {
       sendJSON(res, 200, { status: "ok", timestamp: Date.now() });
       return;
     }
 
-    if (req.method === "POST" && req.url === "/event") {
+    if (route.action === "list_responses") {
+      if (!authenticate(req)) {
+        sendJSON(res, 401, { ok: false, error: "Unauthorized" });
+        return;
+      }
+      const responses = getAllResponses();
+      sendJSON(res, 200, responses);
+      return;
+    }
+
+    if (route.action === "ack_response") {
+      if (!authenticate(req)) {
+        sendJSON(res, 401, { ok: false, error: "Unauthorized" });
+        return;
+      }
+      const deleted = ackResponse(route.param!);
+      sendJSON(res, 200, { ok: deleted });
+      return;
+    }
+
+    if (route.action === "event") {
       if (!authenticate(req)) {
         sendJSON(res, 401, { ok: false, error: "Unauthorized" });
         return;

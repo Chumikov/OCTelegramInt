@@ -1,7 +1,8 @@
-import type { PendingRequest } from "../shared/types.js";
+import type { PendingRequest, BotResponse } from "../shared/types.js";
 import { config } from "../config.js";
 
 const pending = new Map<string, PendingRequest>();
+const responses = new Map<string, BotResponse>();
 let cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
 export function addPending(request: PendingRequest): void {
@@ -16,13 +17,17 @@ export function removePending(requestID: string): boolean {
   return pending.delete(requestID);
 }
 
-export function findByTelegramMessage(messageID: number, chatID: number): PendingRequest | undefined {
-  for (const req of pending.values()) {
-    if (req.telegramMessageID === messageID && req.chatID === chatID) {
-      return req;
-    }
-  }
-  return undefined;
+export function addResponse(response: BotResponse): void {
+  responses.set(response.id, response);
+  console.log(`[state] Response queued: ${response.type} (${response.id})`);
+}
+
+export function getAllResponses(): BotResponse[] {
+  return Array.from(responses.values());
+}
+
+export function ackResponse(id: string): boolean {
+  return responses.delete(id);
 }
 
 export function startCleanup(): void {
@@ -42,8 +47,4 @@ export function stopCleanup(): void {
     clearInterval(cleanupTimer);
     cleanupTimer = null;
   }
-}
-
-export function pendingCount(): number {
-  return pending.size;
 }

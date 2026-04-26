@@ -1,6 +1,5 @@
 import { Bot, InlineKeyboard } from "grammy";
-import { addPending } from "../state.js";
-import { replyQuestion, rejectQuestion } from "../opencode-client.js";
+import { addPending, addResponse, getPending, removePending } from "../state.js";
 import {
   formatQuestionMessage,
   formatReplyConfirmation,
@@ -55,7 +54,7 @@ export function registerQuestionCallbacks(bot: Bot): void {
     const requestID = match[1];
     const optIndex = parseInt(match[2], 10);
 
-    await ctx.answerCallbackQuery({ text: "Обработка..." });
+    await ctx.answerCallbackQuery({ text: "Принято" });
 
     const pending = getPending(requestID);
     if (!pending) {
@@ -70,9 +69,15 @@ export function registerQuestionCallbacks(bot: Bot): void {
       return;
     }
 
-    const success = await replyQuestion(requestID, [[selectedLabel]]);
+    addResponse({
+      id: `qreply:${requestID}`,
+      type: "question_reply",
+      requestID,
+      answers: [[selectedLabel]],
+    });
     removePending(requestID);
-    await safeEdit(ctx, success ? formatReplyConfirmation(`Выбрано: ${selectedLabel}`) : formatError("Не удалось отправить ответ"));
+
+    await safeEdit(ctx, formatReplyConfirmation(`Выбрано: ${selectedLabel}`));
   });
 
   bot.callbackQuery(/^q:custom:(.+)$/, async (ctx) => {
@@ -88,10 +93,16 @@ export function registerQuestionCallbacks(bot: Bot): void {
     const match = ctx.callbackQuery.data!.match(/^q:reject:(.+)$/)!;
     const requestID = match[1];
 
-    await ctx.answerCallbackQuery({ text: "Отклонение..." });
-    const success = await rejectQuestion(requestID);
+    await ctx.answerCallbackQuery({ text: "Принято" });
+
+    addResponse({
+      id: `qreject:${requestID}`,
+      type: "question_reject",
+      requestID,
+    });
     removePending(requestID);
-    await safeEdit(ctx, success ? formatReplyConfirmation("Вопрос отклонён") : formatError("Не удалось отклонить"));
+
+    await safeEdit(ctx, formatReplyConfirmation("Вопрос отклонён"));
   });
 }
 
@@ -102,5 +113,3 @@ async function safeEdit(ctx: any, text: string): Promise<void> {
     await ctx.reply(text, { parse_mode: "HTML" });
   }
 }
-
-import { getPending, removePending } from "../state.js";

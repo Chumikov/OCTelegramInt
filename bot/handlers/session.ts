@@ -1,11 +1,9 @@
 import { Bot, InlineKeyboard } from "grammy";
-import { addPending } from "../state.js";
-import { sendPrompt } from "../opencode-client.js";
+import { addPending, addResponse } from "../state.js";
 import {
   formatSessionIdleMessage,
   formatSessionErrorMessage,
   formatReplyConfirmation,
-  formatError,
 } from "../formatters.js";
 import type { SessionIdlePayload, SessionErrorPayload } from "../../shared/types.js";
 
@@ -74,19 +72,19 @@ export function registerSessionCallbacks(bot: Bot): void {
     const match = ctx.callbackQuery.data!.match(/^session:continue:(.+)$/)!;
     const sessionID = match[1];
 
-    await ctx.answerCallbackQuery({ text: "Отправка..." });
-    const success = await sendPrompt(sessionID, "continue");
+    await ctx.answerCallbackQuery({ text: "Принято" });
+
+    addResponse({
+      id: `sprompt:${sessionID}:continue`,
+      type: "session_prompt",
+      sessionID,
+      text: "continue",
+    });
 
     try {
-      await ctx.editMessageText(
-        success ? formatReplyConfirmation("Команда 'продолжить' отправлена") : formatError("Не удалось отправить команду"),
-        { parse_mode: "HTML" }
-      );
+      await ctx.editMessageText(formatReplyConfirmation("Команда 'продолжить' отправлена"), { parse_mode: "HTML" });
     } catch {
-      await ctx.reply(
-        success ? formatReplyConfirmation("Команда 'продолжить' отправлена") : formatError("Не удалось отправить команду"),
-        { parse_mode: "HTML" }
-      );
+      await ctx.reply(formatReplyConfirmation("Команда 'продолжить' отправлена"), { parse_mode: "HTML" });
     }
   });
 

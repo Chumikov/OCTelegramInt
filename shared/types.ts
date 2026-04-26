@@ -70,3 +70,36 @@ export interface PendingRequest {
   payload: PluginEvent;
   createdAt: number;
 }
+
+export interface BotResponsePermission {
+  id: string;
+  type: "permission_reply";
+  requestID: string;
+  reply: "once" | "always" | "reject";
+}
+
+export interface BotResponseQuestionReply {
+  id: string;
+  type: "question_reply";
+  requestID: string;
+  answers: string[][];
+}
+
+export interface BotResponseQuestionReject {
+  id: string;
+  type: "question_reject";
+  requestID: string;
+}
+
+export interface BotResponseSessionPrompt {
+  id: string;
+  type: "session_prompt";
+  sessionID: string;
+  text: string;
+}
+
+export type BotResponse =
+  | BotResponsePermission
+  | BotResponseQuestionReply
+  | BotResponseQuestionReject
+  | BotResponseSessionPrompt;
