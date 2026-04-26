@@ -24,20 +24,33 @@ function formatContext(context: ContextMessage[]): string {
 }
 
 export function formatPermissionMessage(payload: PermissionEventPayload): string {
-  const meta = payload.metadata || {} as Record<string, unknown>;
-  const filePath = (meta.filepath as string) || (meta.filePath as string) || "—";
+  const meta = (payload.metadata || {}) as Record<string, unknown>;
   const permType = payload.permission || "unknown";
   const sessionSlice = payload.sessionID ? payload.sessionID.slice(0, 8) : "unknown";
+  const toolName = (meta.toolName as string) || "";
+  const toolArgs = (meta.toolArgs as string) || "";
   const ctxBlock = formatContext(payload.context || []);
 
-  return [
-    `<b>🔐 Запрос разрешения</b>`,
-    ``,
-    `📁 <b>Файл:</b> <code>${escapeHtml(filePath)}</code>`,
-    `🔧 <b>Операция:</b> <code>${escapeHtml(permType)}</code>`,
-    `📋 <b>Сессия:</b> <code>${escapeHtml(sessionSlice)}</code>`,
-    ctxBlock,
-  ].join("\n");
+  const parts: string[] = [`<b>🔐 Запрос разрешения</b>`, ``];
+
+  if (toolName) {
+    parts.push(`🔧 <b>Инструмент:</b> <code>${escapeHtml(toolName)}</code>`);
+  }
+  parts.push(`📂 <b>Тип:</b> <code>${escapeHtml(permType)}</code>`);
+
+  if (payload.patterns?.length) {
+    parts.push(`📁 <b>Пути:</b> <code>${escapeHtml(payload.patterns.join(", "))}</code>`);
+  }
+
+  if (toolArgs && toolArgs !== "{}") {
+    const truncated = toolArgs.length > 500 ? toolArgs.slice(0, 500) + "..." : toolArgs;
+    parts.push(`📝 <b>Аргументы:</b>\n<pre>${escapeHtml(truncated)}</pre>`);
+  }
+
+  parts.push(`📋 <b>Сессия:</b> <code>${escapeHtml(sessionSlice)}</code>`);
+  parts.push(ctxBlock);
+
+  return parts.join("\n");
 }
 
 export function formatQuestionMessage(payload: QuestionEventPayload): string {

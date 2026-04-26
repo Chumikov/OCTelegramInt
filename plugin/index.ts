@@ -181,22 +181,42 @@ async function _server(input: PluginInput, options?: PluginOpts) {
       switch (resp.type) {
         case "permission_reply":
           log(`  -> permission ${resp.requestID}: ${resp.reply}`);
-          await callOpenCodeApi("POST", `/session/${resp.sessionID}/permissions/${resp.requestID}`, { response: resp.reply });
+          try {
+            await (client as any).postSessionIdPermissionsPermissionId({
+              body: { response: resp.reply },
+              path: { id: resp.sessionID, permissionID: resp.requestID },
+            });
+            log(`  -> permission reply OK`);
+          } catch (err) {
+            logError(`  -> permission reply error:`, err instanceof Error ? err.message : String(err));
+          }
           break;
         case "question_reply":
           log(`  -> question ${resp.requestID}:`, JSON.stringify(resp.answers));
-          await callOpenCodeApi("POST", `/session/${resp.sessionID}/prompt_async`, {
-            parts: [{ type: "text", text: resp.answers.flat().join(", ") }],
-          });
+          try {
+            await client.session.prompt({
+              body: { parts: [{ type: "text", text: resp.answers.flat().join(", ") }] },
+              path: { id: resp.sessionID },
+            });
+            log(`  -> question reply OK`);
+          } catch (err) {
+            logError(`  -> question reply error:`, err instanceof Error ? err.message : String(err));
+          }
           break;
         case "question_reject":
           log(`  -> reject question ${resp.requestID}`);
           break;
         case "session_prompt":
           log(`  -> session ${resp.sessionID}: "${resp.text?.slice(0, 100)}"`);
-          await callOpenCodeApi("POST", `/session/${resp.sessionID}/prompt_async`, {
-            parts: [{ type: "text", text: resp.text }],
-          });
+          try {
+            await client.session.prompt({
+              body: { parts: [{ type: "text", text: resp.text }] },
+              path: { id: resp.sessionID },
+            });
+            log(`  -> session prompt OK`);
+          } catch (err) {
+            logError(`  -> session prompt error:`, err instanceof Error ? err.message : String(err));
+          }
           break;
         default:
           logError(`  -> unknown response type: ${resp.type}`);
@@ -207,6 +227,7 @@ async function _server(input: PluginInput, options?: PluginOpts) {
   }
 
   // Registration
+  log("Plugin v2 loaded (API paths: /session/{id}/permissions/{permId})");
   try {
     log("Registering with bot...");
     const registered = await postToBot({
@@ -298,8 +319,26 @@ async function _server(input: PluginInput, options?: PluginOpts) {
         const p = event.properties;
         switch (event.type) {
           case "permission.asked": {
-            log(`  permission.asked: id=${p.id} session=${p.sessionID?.slice(0, 8)}... permission=${p.permission}`);
-            log(`  patterns:`, JSON.stringify(p.patterns));
+            let toolName = "";
+            let toolArgs = "";
+            if (p.tool?.messageID && p.sessionID) {
+              try {
+                const msgResp = await client.session.message({
+                  path: { id: p.sessionID, messageID: p.tool.messageID },
+                });
+                const msgData = msgResp?.data as any;
+                if (msgData?.parts) {
+                  for (const part of msgData.parts) {
+                    if (part.type === "tool-call" && part.toolCall) {
+                      toolName = part.toolCall.name || "";
+                      try { toolArgs = JSON.stringify(JSON.parse(part.toolCall.arguments), null, 2).slice(0, 2000); } catch { toolArgs = (part.toolCall.arguments || "").slice(0, 2000); }
+                    }
+                  }
+                }
+              } catch (err) {
+                log(`  fetch tool message: ${err instanceof Error ? err.message : String(err)}`);
+              }
+            }
             const ctx = await fetchContext(p.sessionID);
             const ok = await postToBot({
               type: "permission.asked",
@@ -307,7 +346,7 @@ async function _server(input: PluginInput, options?: PluginOpts) {
               sessionID: p.sessionID,
               permission: p.permission,
               patterns: p.patterns,
-              metadata: p.metadata,
+              metadata: { ...p.metadata, toolName, toolArgs },
               always: p.always,
               context: ctx,
             });
