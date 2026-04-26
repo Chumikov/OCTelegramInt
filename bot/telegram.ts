@@ -7,7 +7,16 @@ import { addResponse, removePending } from "./state.js";
 import { formatReplyConfirmation } from "./formatters.js";
 
 export function createBot(): Bot {
-  const bot = new Bot(config.telegramBotToken);
+  const botOptions: Record<string, any> = {};
+  if (config.telegramApiRoot) {
+    botOptions.client = {
+      apiRoot: config.telegramApiRoot,
+      baseFetchConfig: {
+        headers: { "X-Proxy-Secret": config.telegramProxySecret },
+      },
+    };
+  }
+  const bot = new Bot(config.telegramBotToken, botOptions);
 
   bot.command("start", async (ctx) => {
     if (ctx.chat?.id?.toString() !== config.allowedChatID) return;

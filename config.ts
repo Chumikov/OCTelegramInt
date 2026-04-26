@@ -41,6 +41,8 @@ export const config = {
   botHost: getEnv("BOT_HOST", "0.0.0.0"),
   contextMessageCount: parseInt(getEnv("CONTEXT_MESSAGE_COUNT", "3"), 10),
   bridgeSecret: getEnv("BRIDGE_SECRET", ""),
+  telegramApiRoot: getEnv("TELEGRAM_API_ROOT", ""),
+  telegramProxySecret: getEnv("TELEGRAM_PROXY_SECRET", ""),
   requestTTL: 5 * 60 * 1000,
   cleanupInterval: 60 * 1000,
 } as const;

@@ -106,12 +106,19 @@ export function createEventServer(bot: Bot) {
         return;
       }
 
+      let event: PluginEvent;
       try {
         const body = await readBody(req);
-        const event: PluginEvent = JSON.parse(body);
+        event = JSON.parse(body);
+      } catch (err) {
+        console.error("[server] Invalid JSON payload:", err);
+        sendJSON(res, 400, { ok: false, error: "Invalid payload" });
+        return;
+      }
 
-        console.log(`[server] Received event type=${event.type} body=${body.slice(0, 500)}`);
+      sendJSON(res, 200, { ok: true });
 
+      try {
         switch (event.type) {
           case "register":
             registerServer(event.serverUrl);
@@ -141,11 +148,8 @@ export function createEventServer(bot: Bot) {
           default:
             console.log(`[server] Unknown event type: ${(event as any).type}`);
         }
-
-        sendJSON(res, 200, { ok: true });
       } catch (err) {
-        console.error("[server] Error processing event:", err);
-        sendJSON(res, 400, { ok: false, error: "Invalid payload" });
+        console.error(`[server] Error handling ${event.type}:`, err);
       }
       return;
     }

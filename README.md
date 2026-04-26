@@ -1,339 +1,233 @@
 # OpenCode Telegram Bridge
 
-Integrate [OpenCode](https://opencode.ai) with Telegram to receive and respond to interactive prompts remotely.
-
----
-
-## 🇷🇺 Описание (Русский)
-
-**OpenCode Telegram Bridge** — гибридная интеграция (server plugin + standalone бот) для удалённого взаимодействия с OpenCode через Telegram:
-
-- **Запросы разрешений** (чтение, запись, выполнение) — кнопки «Разрешить / Всегда / Отклонить»
-- **Вопросы с вариантами** (`question` tool) — inline-кнопки + свой ответ
-- **Остановки сессии** (idle, error) — «Продолжить» или произвольная команда
-- **TUI-уведомления** — toast при потере/восстановлении связи с ботом
-- **Инструмент `telegram_status`** — AI может проверить статус бота по запросу
-
-Каждое уведомление включает **контекст** (последние сообщения агента).
-
-### Архитектура
+Получайте запросы от [OpenCode](https://opencode.ai) прямо в Telegram и отвечайте на них с телефона — разрешения на выполнение команд, вопросы с вариантами ответов, уведомления об ошибках.
 
 ```
-┌──────────────────────────────────────┐
-│  opencode (ваша машина)               │
-│  ┌──────────────────────────────────┐ │
-│  │ Plugin                           │ │
-│  │                                   │ │
-│  │  event hook ──POST /event──────┐  │ │    Plugin ──▶ Bot
-│  │                                 │  │ │    (outbound HTTPS)
-│  │  polling loop ◀──GET /responses│  │ │
-│  │     │                          │  │ │
-│  │     ▼                          ▼  │ │
-│  │  opencode API              Telegram │ │
-│  │  (localhost)                Bot    │ │
-│  │                             :3456  │ │
-│  │  toast() ──▶ TUI                   │ │
-│  │  telegram_status tool              │ │
-│  └──────────────────────────────────┘ │
-└──────────────────────────────────────┘
-
-         ┌─────────────┐
-         │ Docker-сервер│◀── Plugin отправляет события
-         │ Telegram Bot │──▶ Plugin забирает ответы (poll)
-         │  (3456)      │
-         └──────┬───────┘
-                │
-                ▼
-         ┌──────────────┐
-         │ Telegram App  │
-         │ (ваш телефон) │
-         └──────────────┘
+OpenCode хочет выполнить команду → Telegram → вы нажали «Разрешить» → OpenCode продолжил работу
 ```
 
-**Ключевой принцип**: Бот **никогда не обращается** к opencode API напрямую. Все вызовы opencode делает plugin локально. Бот — только хранилище событий и очередь ответов.
+## Как это работает
 
-### Установка
+Проект состоит из двух частей:
 
-1. **Клонируйте:**
+1. **Telegram бот** — запускается на сервере (Docker), получает события и отправляет их вам в Telegram. Когда вы нажимаете кнопку, бот сохраняет ответ в очередь.
+2. **Plugin** — запускается внутри OpenCode на вашей машине, отправляет события боту и периодически забирает ваши ответы.
 
-```bash
-git clone <repo-url> && cd OCTelegramInt && npm install
+Бот **никогда не обращается** к OpenCode напрямую — все вызовы делает plugin локально.
+
+```
+Ваша машина                           Сервер
+┌──────────────┐    HTTPS POST       ┌──────────────┐    ┌─────────────┐
+│  OpenCode     │ ──── события ────▶ │  Telegram Bot │ ──▶│ Telegram App│
+│  + Plugin     │ ◀─── ответы ────── │  (Docker)     │ ◀──│ (телефон)    │
+└──────────────┘    polling GET      └──────────────┘    └─────────────┘
 ```
 
-2. **Создайте бота** через [@BotFather](https://t.me/BotFather), получите токен
+## Требования
 
-3. **Узнайте Chat ID** через [@userinfobot](https://t.me/userinfobot)
+- **Telegram бот**: сервер с [Docker](https://docs.docker.com/get-docker/) и [docker compose](https://docs.docker.com/compose/install/) (или Node.js 22+ для запуска без Docker)
+- **OpenCode plugin**: [OpenCode](https://opencode.ai) установлен и настроен (поставляется вместе с ним)
+- **Telegram аккаунт** для создания бота
 
-4. **Сгенерируйте секрет:**
+## Установка
+
+### Шаг 1. Создайте Telegram бота
+
+1. Откройте [@BotFather](https://t.me/BotFather) в Telegram
+2. Отправьте `/newbot`
+3. Придумайте имя (например: `My OpenCode Bridge`) и username (например: `my_oc_bridge_bot`)
+4. BotFather пришлёт **токен** вида `123456789:ABCdefGHIjklMNOpqrsTUVwxyz` — сохраните его
+
+### Шаг 2. Узнайте свой Chat ID
+
+1. Откройте [@userinfobot](https://t.me/userinfobot) в Telegram
+2. Отправьте `/start`
+3. Бот пришлёт ваш **Chat ID** (число, например `123456789`) — сохраните его
+
+### Шаг 3. Сгенерируйте секрет
+
+Этот секрет защищает канал между plugin и ботом от посторонних:
 
 ```bash
 openssl rand -hex 32
 ```
 
-5. **Настройте `.env`:**
+Сохраните полученную строку — она понадобится и для `.env`, и для конфига plugin.
+
+### Шаг 4. Запустите бота на сервере
+
+**Клонируйте репозиторий:**
+
+```bash
+git clone https://github.com/Chumikov/OCTelegramInt.git
+cd OCTelegramInt
+```
+
+**Создайте `.env` файл:**
 
 ```bash
 cp .env.example .env
 ```
 
+Отредактируйте `.env`, подставив свои значения:
+
 ```env
-TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 ALLOWED_CHAT_ID=123456789
-BRIDGE_SECRET=ваш_сгенерированный_секрет
+BRIDGE_SECRET=ваша_строка_из_openssl_rand
 ```
 
-### Запуск бота
+> `BOT_PORT` и `BOT_HOST` можно не менять — значения по умолчанию подходят для Docker.
 
-**Docker (рекомендуется):**
+**Запустите через Docker:**
 
 ```bash
 docker compose up -d --build
-docker compose logs -f
 ```
 
-**Локально:**
+Проверьте, что бот запустился:
 
 ```bash
+docker compose logs -f
+# Должно быть: [server] Listening on 0.0.0.0:3456
+```
+
+**Альтернатива — запуск без Docker** (нужен Node.js 22+):
+
+```bash
+npm install
 npm run bot
 ```
 
-### Подключение plugin к OpenCode
+### Шаг 5. Опубликуйте бота в интернет (для удалённого сервера)
 
-Добавьте в `opencode.jsonc` проекта или глобально (`~/.opencode/opencode.jsonc`):
+Бот слушает `127.0.0.1:3456` — он доступен только с localhost. Чтобы plugin на вашей машине мог достучаться до бота, нужен reverse proxy.
 
-**Удалённый бот:**
+**Вариант A: nginx**
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name your-server.com;
+
+    ssl_certificate     /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    location /telegram-bridge/ {
+        proxy_pass http://127.0.0.1:3456/;
+        proxy_set_header Host $host;
+        proxy_read_timeout 300s;
+    }
+}
+```
+
+Бот будет доступен по адресу: `https://your-server.com/telegram-bridge`
+
+**Вариант B: Caddy** (автоматический HTTPS)
+
+```
+your-server.com {
+    handle_path /telegram-bridge/* {
+        reverse_proxy localhost:3456
+    }
+}
+```
+
+> Если бот и OpenCode на **одной машине** — reverse proxy не нужен. Plugin подключится к `http://localhost:3456`.
+
+### Шаг 6. Подключите plugin к OpenCode
+
+Создайте или отредактируйте файл `~/.opencode/opencode.jsonc` (глобально для всех проектов) или `opencode.jsonc` в папке проекта:
+
+**Если бот на сервере (через internet):**
 
 ```jsonc
 {
   "plugin": [
-    ["./path/to/OCTelegramInt/plugin/index.ts", {
+    ["~/OCTelegramInt/plugin/index.ts", {
       "botUrl": "https://your-server.com/telegram-bridge",
-      "secret": "ваш_сгенерированный_секрет"
+      "secret": "ваша_строка_из_openssl_rand"
     }]
   ]
 }
 ```
 
-**Локальный бот (тот же хост):**
+**Если бот на той же машине:**
 
 ```jsonc
 {
   "plugin": [
-    ["./path/to/OCTelegramInt/plugin/index.ts", {}]
+    ["~/OCTelegramInt/plugin/index.ts", {}]
   ]
 }
 ```
 
-### Graceful Degradation
+> Путь к plugin указывайте **относительно `opencode.jsonc`** или используйте `~` для домашней директории. Замените `~/OCTelegramInt` на реальный путь, куда вы клонировали репозиторий.
 
-| Ситуация | Поведение |
-|---|---|
-| Бот доступен | Telegram + TUI работают параллельно |
-| Бот недоступен | TUI работает как обычно; toast «❌ Бот недоступен» |
-| Бот поднялся | Toast «⚠️ Восстановлено»; pending-ответы доставляются |
-| Ответили в TUI и Telegram | Первый выигрывает; второй — ошибка (игнорируется) |
-| Проверить статус | Напишите в opencode: «проверь статус телеграм бота» → AI вызовет `telegram_status` |
+### Шаг 7. Проверьте, что всё работает
 
-### Безопасность
+1. Запустите OpenCode в терминале
+2. В Telegram отправьте боту `/start` — он должен ответить: «Бот запущен и ожидает события от OpenCode»
+3. Начните работу в OpenCode — при запросе разрешения вы получите уведомление в Telegram
+4. Для проверки статуса бота скажите OpenCode: «проверь статус телеграм бота» — AI вызовет инструмент `telegram_status`
 
-- Plugin ↔ Bot: **Bearer token** (timing-safe comparison)
-- Bot port: **127.0.0.1 только** (docker-compose)
-- Chat ID фильтр на все Telegram-сообщения
-- Все секреты в `.env` (в `.gitignore`)
-- Pending TTL: 5 минут, toast debounce: 30 сек
-- Payload limit: 1 MB
+## Что бот пересылает
 
-### Переменные окружения
+| Событие в OpenCode | Что вы видите в Telegram | Кнопки |
+|---|---|---|
+| Агент просит разрешение (чтение/запись/выполнение) | Сообщение с описанием и контекстом | «Разрешить» / «Всегда» / «Отклонить» |
+| Агент задаёт вопрос с вариантами | Сообщение с вариантами | Inline-кнопки + «Свой ответ» |
+| Сессия остановилась (idle/error) | Уведомление с последним контекстом | «Продолжить» / отправить команду текстом |
+
+Каждое уведомление включает **контекст** — последние сообщения агента, чтобы вы понимали, почему появился запрос.
+
+## Если бот недоступен
+
+OpenCode продолжит работать нормально — все запросы можно ответить в терминале (TUI). Telegram — дополнительный канал, не замена.
+
+- Бот недоступен → в TUI появится уведомление: «Бот недоступен»
+- Бот восстановился → уведомление «Подключение восстановлено»
+- Ответили и в TUI, и в Telegram → первый ответ выигрывает, второй игнорируется
+
+## Переменные окружения
 
 | Переменная | Обязательная | По умолчанию | Описание |
 |---|---|---|---|
 | `TELEGRAM_BOT_TOKEN` | Да | — | Токен от @BotFather |
-| `ALLOWED_CHAT_ID` | Да | — | Chat ID пользователя |
+| `ALLOWED_CHAT_ID` | Да | — | Ваш Chat ID (фильтр — бот отвечает только вам) |
+| `BRIDGE_SECRET` | Да | — | Секрет для защиты канала plugin↔бот (из `openssl rand -hex 32`) |
 | `BOT_PORT` | Нет | `3456` | Порт HTTP-сервера |
-| `BOT_HOST` | Нет | `0.0.0.0` | Хост (в Docker: `0.0.0.0`) |
-| `CONTEXT_MESSAGE_COUNT` | Нет | `3` | Сообщений для контекста |
-| `BRIDGE_SECRET` | Рекомендуется | — | Bearer auth plugin↔bot |
+| `BOT_HOST` | Нет | `0.0.0.0` | Хост для прослушивания (в Docker всегда `0.0.0.0`) |
+| `CONTEXT_MESSAGE_COUNT` | Нет | `3` | Сколько последних сообщений агента добавлять в контекст |
 
----
+## Безопасность
 
-## 🇬🇧 Description (English)
+- Канал plugin↔бот защищён **Bearer token** (timing-safe сравнение)
+- Порт бота доступен только с **localhost** (`127.0.0.1` в docker-compose)
+- Бот обрабатывает сообщения **только от ALLOWED_CHAT_ID**
+- Все секреты в `.env` (исключён из git через `.gitignore`)
+- Старые запросы удаляются автоматически через **5 минут**
 
-**OpenCode Telegram Bridge** — a hybrid integration (server plugin + standalone bot) for remote interaction with OpenCode via Telegram:
-
-- **Permission requests** (read, write, execute) — "Allow / Always / Deny" buttons
-- **Questions with options** (`question` tool) — inline buttons + custom text input
-- **Session stops** (idle, error) — "Continue" or custom command
-- **TUI toast notifications** — alerts on connection loss/recovery
-- **`telegram_status` tool** — AI can check bot status on demand
-
-Each notification includes **context** (recent agent messages).
-
-### Architecture
-
-```
-┌──────────────────────────────────────┐
-│  opencode (your machine)              │
-│  ┌──────────────────────────────────┐ │
-│  │ Plugin                           │ │
-│  │                                   │ │
-│  │  event hook ──POST /event──────┐  │ │    Plugin ──▶ Bot
-│  │                                 │  │ │    (outbound HTTPS)
-│  │  polling loop ◀──GET /responses│  │ │
-│  │     │                          │  │ │
-│  │     ▼                          ▼  │ │
-│  │  opencode API              Telegram │ │
-│  │  (localhost)                Bot    │ │
-│  │                             :3456  │ │
-│  │  toast() ──▶ TUI                   │ │
-│  │  telegram_status tool              │ │
-│  └──────────────────────────────────┘ │
-└──────────────────────────────────────┘
-
-         ┌─────────────┐
-         │ Docker server│◀── Plugin sends events
-         │ Telegram Bot │──▶ Plugin picks up responses (poll)
-         │  (3456)      │
-         └──────┬───────┘
-                │
-                ▼
-         ┌──────────────┐
-         │ Telegram App  │
-         │ (your phone)  │
-         └──────────────┘
-```
-
-**Key principle**: The bot **never calls** the opencode API directly. All opencode API calls are made by the plugin locally. The bot is only an event store and response queue.
-
-### Installation
-
-1. **Clone:**
-
-```bash
-git clone <repo-url> && cd OCTelegramInt && npm install
-```
-
-2. **Create a bot** via [@BotFather](https://t.me/BotFather), get the token
-
-3. **Get your Chat ID** via [@userinfobot](https://t.me/userinfobot)
-
-4. **Generate a secret:**
-
-```bash
-openssl rand -hex 32
-```
-
-5. **Configure `.env`:**
-
-```bash
-cp .env.example .env
-```
-
-```env
-TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
-ALLOWED_CHAT_ID=123456789
-BRIDGE_SECRET=your_generated_secret
-```
-
-### Running the Bot
-
-**Docker (recommended):**
-
-```bash
-docker compose up -d --build
-docker compose logs -f
-```
-
-**Locally:**
-
-```bash
-npm run bot
-```
-
-### Registering the Plugin
-
-Add to `opencode.jsonc` (project or global `~/.opencode/opencode.jsonc`):
-
-**Remote bot:**
-
-```jsonc
-{
-  "plugin": [
-    ["./path/to/OCTelegramInt/plugin/index.ts", {
-      "botUrl": "https://your-server.com/telegram-bridge",
-      "secret": "your_generated_secret"
-    }]
-  ]
-}
-```
-
-**Local bot (same host):**
-
-```jsonc
-{
-  "plugin": [
-    ["./path/to/OCTelegramInt/plugin/index.ts", {}]
-  ]
-}
-```
-
-### Graceful Degradation
-
-| Situation | Behavior |
-|---|---|
-| Bot available | Telegram + TUI work in parallel |
-| Bot down | TUI works normally; toast "❌ Bot unavailable" |
-| Bot recovered | Toast "⚠️ Reconnected"; pending responses delivered |
-| Answered in both TUI and Telegram | First wins; second gets error (ignored) |
-| Check status | Type in opencode: "check telegram bot status" → AI calls `telegram_status` |
-
-### Security
-
-- Plugin ↔ Bot: **Bearer token** (timing-safe comparison)
-- Bot port: **127.0.0.1 only** (docker-compose)
-- Chat ID filter on all Telegram messages
-- All secrets in `.env` (in `.gitignore`)
-- Pending TTL: 5 minutes, toast debounce: 30 sec
-- Payload limit: 1 MB
-
-### Environment Variables
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `TELEGRAM_BOT_TOKEN` | Yes | — | Token from @BotFather |
-| `ALLOWED_CHAT_ID` | Yes | — | User's Chat ID |
-| `BOT_PORT` | No | `3456` | HTTP server port |
-| `BOT_HOST` | No | `0.0.0.0` | Host (use `0.0.0.0` in Docker) |
-| `CONTEXT_MESSAGE_COUNT` | No | `3` | Messages for context |
-| `BRIDGE_SECRET` | Recommended | — | Bearer auth plugin↔bot |
-
-### Project Structure
+## Структура проекта
 
 ```
 OCTelegramInt/
-├── config.ts                  # Configuration
-├── shared/types.ts            # Shared types (PluginEvent, BotResponse)
-├── plugin/index.ts            # OpenCode server plugin
-│                              #   - event hook (sends events to bot)
-│                              #   - polling loop (picks up responses)
-│                              #   - TUI toasts (status alerts)
-│                              #   - telegram_status tool
+├── plugin/index.ts            # OpenCode plugin (events + polling + toasts)
 ├── bot/
-│   ├── index.ts               # Main entry
-│   ├── server.ts              # HTTP: POST /event, GET /responses, DELETE /responses/:id
-│   ├── telegram.ts            # grammy bot + text router
-│   ├── state.ts               # Pending requests + response queue
-│   ├── formatters.ts          # Telegram HTML formatting
-│   ├── opencode-client.ts     # Server URL registration (logging only)
+│   ├── index.ts               # Точка входа
+│   ├── server.ts              # HTTP API (POST /event, GET /responses)
+│   ├── telegram.ts            # grammy бот
+│   ├── state.ts               # Очередь ответов
+│   ├── formatters.ts          # Форматирование сообщений
 │   └── handlers/
-│       ├── permission.ts      # Permission → Telegram + queue response
-│       ├── question.ts        # Question → Telegram + queue response
-│       └── session.ts         # Session → Telegram + queue response
+│       ├── permission.ts      # Запросы разрешений
+│       ├── question.ts        # Вопросы с вариантами
+│       └── session.ts         # Остановки сессий
+├── shared/types.ts            # Общие типы
+├── config.ts                  # Конфигурация
 ├── Dockerfile
 ├── docker-compose.yml
-├── .dockerignore
-├── .env.example
-├── package.json
-└── tsconfig.json
+└── .env.example
 ```
 
 ## License
