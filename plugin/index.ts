@@ -1,6 +1,5 @@
 import type { PluginEvent, ContextMessage } from "../shared/types.js";
 
-const BOT_URL = "http://localhost:3456/event";
 const MAX_CONTEXT_MESSAGES = 3;
 const RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 500;
@@ -15,6 +14,11 @@ type PluginInput = {
   };
   project: { id: string; name?: string; worktree: string };
   serverUrl: URL;
+};
+
+type PluginOptions = {
+  botUrl?: string;
+  secret?: string;
 };
 
 type Hooks = {
@@ -52,35 +56,45 @@ async function fetchContextMessages(
   }
 }
 
-async function postToBot(payload: PluginEvent): Promise<void> {
-  for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
-    try {
-      const response = await fetch(BOT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (response.ok) return;
-      console.error(
-        `[opencode-telegram-plugin] Bot returned ${response.status}: ${await response.text()}`
-      );
-    } catch (err) {
-      console.error(
-        `[opencode-telegram-plugin] Failed to reach bot (attempt ${attempt + 1}/${RETRY_ATTEMPTS}):`,
-        err
-      );
-    }
-    if (attempt < RETRY_ATTEMPTS - 1) {
-      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+export default async function TelegramBridgePlugin(
+  { client, project, serverUrl }: PluginInput,
+  options?: PluginOptions
+): Promise<Hooks> {
+  const botEventUrl = options?.botUrl || "http://localhost:3456/event";
+  const secret = options?.secret || "";
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (secret) {
+    headers["Authorization"] = `Bearer ${secret}`;
+  }
+
+  async function postToBot(payload: PluginEvent): Promise<void> {
+    for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
+      try {
+        const response = await fetch(botEventUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+        });
+        if (response.ok) return;
+        const errText = await response.text();
+        console.error(
+          `[opencode-telegram-plugin] Bot returned ${response.status}: ${errText}`
+        );
+      } catch (err) {
+        console.error(
+          `[opencode-telegram-plugin] Failed to reach bot (attempt ${attempt + 1}/${RETRY_ATTEMPTS}):`,
+          err
+        );
+      }
+      if (attempt < RETRY_ATTEMPTS - 1) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+      }
     }
   }
-}
 
-export default async function TelegramBridgePlugin({
-  client,
-  project,
-  serverUrl,
-}: PluginInput): Promise<Hooks> {
   await postToBot({
     type: "register",
     serverUrl: serverUrl.toString(),

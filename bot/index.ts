@@ -11,8 +11,8 @@ async function main() {
   const bot = createBot();
 
   const eventServer = createEventServer(bot);
-  eventServer.listen(config.botPort, "127.0.0.1", () => {
-    console.log(`[main] Event server listening on 127.0.0.1:${config.botPort}`);
+  eventServer.listen(config.botPort, config.botHost, () => {
+    console.log(`[main] Event server listening on ${config.botHost}:${config.botPort}`);
   });
 
   startCleanup();

@@ -38,8 +38,10 @@ export const config = {
   telegramBotToken: getEnv("TELEGRAM_BOT_TOKEN"),
   allowedChatID: getEnv("ALLOWED_CHAT_ID"),
   botPort: parseInt(getEnv("BOT_PORT", "3456"), 10),
+  botHost: getEnv("BOT_HOST", "0.0.0.0"),
   opencodeServerUrl: getEnv("OPENCODE_SERVER_URL", "http://localhost:4096"),
   contextMessageCount: parseInt(getEnv("CONTEXT_MESSAGE_COUNT", "3"), 10),
+  bridgeSecret: getEnv("BRIDGE_SECRET", ""),
   requestTTL: 5 * 60 * 1000,
   cleanupInterval: 60 * 1000,
 } as const;

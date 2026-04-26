@@ -1,0 +1,22 @@
+services:
+  opencode-telegram-bot:
+    build: .
+    container_name: opencode-tg-bot
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${BOT_PORT:-3456}:3456"
+    env_file:
+      - .env
+    environment:
+      - BOT_HOST=0.0.0.0
+      - BOT_PORT=3456
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3456/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
