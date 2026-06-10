@@ -73,6 +73,7 @@ export function registerQuestionCallbacks(bot: Bot): void {
       id: `qreply:${requestID}`,
       type: "question_reply",
       requestID,
+      sessionID: pending.sessionID,
       answers: [[selectedLabel]],
     });
     removePending(requestID);
@@ -95,10 +96,17 @@ export function registerQuestionCallbacks(bot: Bot): void {
 
     await ctx.answerCallbackQuery({ text: "Принято" });
 
+    const pending = getPending(requestID);
+    if (!pending) {
+      await safeEdit(ctx, formatError("Запрос не найден или устарел"));
+      return;
+    }
+
     addResponse({
       id: `qreject:${requestID}`,
       type: "question_reject",
       requestID,
+      sessionID: pending.sessionID,
     });
     removePending(requestID);
 

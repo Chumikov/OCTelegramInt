@@ -83,6 +83,7 @@ export interface BotResponseQuestionReply {
   id: string;
   type: "question_reply";
   requestID: string;
+  sessionID: string;
   answers: string[][];
 }
 
@@ -90,6 +91,7 @@ export interface BotResponseQuestionReject {
   id: string;
   type: "question_reject";
   requestID: string;
+  sessionID: string;
 }
 
 export interface BotResponseSessionPrompt {

@@ -1,7 +1,18 @@
+type ClientSession = {
+  messages(opts: { path: { id: string }; query?: { limit?: number } }): Promise<{ data?: unknown }>;
+  message(opts: { path: { id: string; messageID: string } }): Promise<{ data?: unknown }>;
+  prompt(opts: { body?: { parts: Array<{ type: string; text: string }> }; path: { id: string } }): Promise<{ data?: unknown }>;
+};
+
 type PluginInput = {
   client: {
-    session: {
-      messages(opts: { sessionID: string; limit: number }): Promise<{ data?: unknown }>;
+    session: ClientSession;
+    postSessionIdPermissionsPermissionId(opts: {
+      body: { response: "once" | "always" | "reject" };
+      path: { id: string; permissionID: string };
+    }): Promise<{ data?: unknown }>;
+    tui: {
+      showToast(opts: { body: { message: string; variant: "info" | "success" | "warning" | "error" } }): Promise<{ data?: unknown }>;
     };
   };
   project: { id: string; name?: string };
@@ -122,8 +133,8 @@ async function _server(input: PluginInput, options?: PluginOpts) {
   async function fetchContext(sessionID: string) {
     try {
       const response = await client.session.messages({
-        sessionID,
-        limit: MAX_CONTEXT_MESSAGES,
+        path: { id: sessionID },
+        query: { limit: MAX_CONTEXT_MESSAGES },
       });
       if (!response?.data) {
         log(`fetchContext session=${sessionID.slice(0, 8)}... -> no data`);
@@ -150,31 +161,6 @@ async function _server(input: PluginInput, options?: PluginOpts) {
     }
   }
 
-  async function callOpenCodeApi(method: string, path: string, body?: unknown): Promise<boolean> {
-    const url = `${serverUrl.toString()}${path}`;
-    log(`opencode API ${method} ${url}`, body ? JSON.stringify(body).slice(0, 200) : "");
-    try {
-      const t0 = Date.now();
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      const elapsed = Date.now() - t0;
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        logError(`opencode API ${method} ${path} -> ${res.status} (${elapsed}ms): ${text.slice(0, 300)}`);
-        return false;
-      }
-      log(`opencode API ${method} ${path} -> ${res.status} OK (${elapsed}ms)`);
-      return true;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      logError(`opencode API ${method} ${path} error: ${msg}`);
-      return false;
-    }
-  }
-
   async function processResponse(resp: Record<string, any>) {
     log(`Processing response id=${resp.id} type=${resp.type}`);
     try {
@@ -182,7 +168,7 @@ async function _server(input: PluginInput, options?: PluginOpts) {
         case "permission_reply":
           log(`  -> permission ${resp.requestID}: ${resp.reply}`);
           try {
-            await (client as any).postSessionIdPermissionsPermissionId({
+            await client.postSessionIdPermissionsPermissionId({
               body: { response: resp.reply },
               path: { id: resp.sessionID, permissionID: resp.requestID },
             });
@@ -204,7 +190,16 @@ async function _server(input: PluginInput, options?: PluginOpts) {
           }
           break;
         case "question_reject":
-          log(`  -> reject question ${resp.requestID}`);
+          log(`  -> reject question ${resp.requestID} session=${resp.sessionID}`);
+          try {
+            await client.session.prompt({
+              body: { parts: [{ type: "text", text: "Question rejected by user via Telegram" }] },
+              path: { id: resp.sessionID },
+            });
+            log(`  -> question reject OK`);
+          } catch (err) {
+            logError(`  -> question reject error:`, err instanceof Error ? err.message : String(err));
+          }
           break;
         case "session_prompt":
           log(`  -> session ${resp.sessionID}: "${resp.text?.slice(0, 100)}"`);
@@ -226,7 +221,6 @@ async function _server(input: PluginInput, options?: PluginOpts) {
     }
   }
 
-  // Registration
   log("Plugin v2 loaded (API paths: /session/{id}/permissions/{permId})");
   try {
     log("Registering with bot...");
@@ -245,7 +239,6 @@ async function _server(input: PluginInput, options?: PluginOpts) {
     logError("Registration exception:", err instanceof Error ? err.message : String(err));
   }
 
-  // Polling loop
   log(`Starting polling loop (interval=${POLL_INTERVAL_MS}ms)`);
   setInterval(async () => {
     try {
@@ -326,12 +319,13 @@ async function _server(input: PluginInput, options?: PluginOpts) {
                 const msgResp = await client.session.message({
                   path: { id: p.sessionID, messageID: p.tool.messageID },
                 });
-                const msgData = msgResp?.data as any;
+                const msgData = msgResp?.data as { parts?: Array<{ type: string; toolCall?: { name?: string; arguments?: string } }> } | undefined;
                 if (msgData?.parts) {
                   for (const part of msgData.parts) {
                     if (part.type === "tool-call" && part.toolCall) {
                       toolName = part.toolCall.name || "";
-                      try { toolArgs = JSON.stringify(JSON.parse(part.toolCall.arguments), null, 2).slice(0, 2000); } catch { toolArgs = (part.toolCall.arguments || "").slice(0, 2000); }
+                      const rawArgs = part.toolCall.arguments || "";
+                      try { toolArgs = JSON.stringify(JSON.parse(rawArgs), null, 2).slice(0, 2000); } catch { toolArgs = rawArgs.slice(0, 2000); }
                     }
                   }
                 }

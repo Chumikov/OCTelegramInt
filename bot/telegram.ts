@@ -3,7 +3,7 @@ import { config } from "../config.js";
 import { registerPermissionCallbacks } from "./handlers/permission.js";
 import { registerQuestionCallbacks, awaitingCustomAnswer } from "./handlers/question.js";
 import { registerSessionCallbacks, awaitingSessionPrompt } from "./handlers/session.js";
-import { addResponse, removePending } from "./state.js";
+import { addResponse, removePending, getPending } from "./state.js";
 import { formatReplyConfirmation } from "./formatters.js";
 
 export function createBot(): Bot {
@@ -45,10 +45,12 @@ export function createBot(): Bot {
     const customQ = awaitingCustomAnswer.get(userID);
     if (customQ) {
       awaitingCustomAnswer.delete(userID);
+      const customQPending = getPending(customQ.requestID);
       addResponse({
         id: `qreply:${customQ.requestID}:custom`,
         type: "question_reply",
         requestID: customQ.requestID,
+        sessionID: customQPending?.sessionID || "",
         answers: [[text]],
       });
       removePending(customQ.requestID);
