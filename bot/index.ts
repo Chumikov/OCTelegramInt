@@ -3,6 +3,14 @@ import { createBot } from "./telegram.js";
 import { createEventServer } from "./server.js";
 import { startCleanup, stopCleanup } from "./state.js";
 
+process.on("unhandledRejection", (reason) => {
+  console.error("[FATAL] Unhandled promise rejection:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Uncaught exception:", err);
+});
+
 async function main() {
   console.log("[main] Starting OpenCode Telegram Bridge...");
   validateConfig();

@@ -11,27 +11,36 @@ export async function handlePermissionEvent(
   chatID: number,
   payload: PermissionEventPayload
 ): Promise<void> {
+  console.log(`[permission] Formatting message for requestID=${payload.requestID}`);
   const text = formatPermissionMessage(payload);
+  console.log(`[permission] Message length=${text.length}, sending to chatID=${chatID}`);
+
   const keyboard = new InlineKeyboard()
     .text("✅ Разрешить", `perm:once:${payload.requestID}`)
     .text("✅ Всегда", `perm:always:${payload.requestID}`)
     .row()
     .text("❌ Отклонить", `perm:reject:${payload.requestID}`);
 
-  const message = await bot.api.sendMessage(chatID, text, {
-    parse_mode: "HTML",
-    reply_markup: keyboard,
-  });
+  try {
+    const message = await bot.api.sendMessage(chatID, text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+    console.log(`[permission] Message sent OK: message_id=${message.message_id}`);
 
-  addPending({
-    type: "permission",
-    requestID: payload.requestID,
-    sessionID: payload.sessionID,
-    telegramMessageID: message.message_id,
-    chatID: message.chat.id,
-    payload,
-    createdAt: Date.now(),
-  });
+    addPending({
+      type: "permission",
+      requestID: payload.requestID,
+      sessionID: payload.sessionID,
+      telegramMessageID: message.message_id,
+      chatID: message.chat.id,
+      payload,
+      createdAt: Date.now(),
+    });
+  } catch (err) {
+    console.error(`[permission] FAILED to send message:`, err);
+    throw err;
+  }
 }
 
 export function registerPermissionCallbacks(bot: Bot): void {

@@ -149,7 +149,7 @@ export function createEventServer(bot: Bot) {
             console.log(`[server] Unknown event type: ${(event as any).type}`);
         }
       } catch (err) {
-        console.error(`[server] Error handling ${event.type}:`, err);
+        console.error(`[server] Error handling ${event.type}:`, err instanceof Error ? `${err.message}\n${err.stack}` : err);
       }
       return;
     }

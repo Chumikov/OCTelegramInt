@@ -19,7 +19,9 @@ export async function handleQuestionEvent(
 ): Promise<void> {
   if (payload.questions.length === 0) return;
 
+  console.log(`[question] Formatting message for requestID=${payload.requestID}`);
   const text = formatQuestionMessage(payload);
+  console.log(`[question] Message length=${text.length}, sending to chatID=${chatID}`);
   const q = payload.questions[0];
 
   const keyboard = new InlineKeyboard();
