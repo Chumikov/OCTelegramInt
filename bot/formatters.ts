@@ -121,15 +121,7 @@ export function formatSessionIdleMessage(payload: SessionIdlePayload): string {
     sessionHeader(payload.session?.title, payload.session?.project),
   ];
 
-  const lastAssistantMsg = payload.context
-    .filter((m) => m.role === "assistant")
-    .pop();
-  if (lastAssistantMsg) {
-    const snippet = truncate(lastAssistantMsg.text, 200);
-    parts.push(`\n💬 <i>${escapeHtml(snippet)}</i>`);
-  }
-
-  if (payload.diff) {
+  if (payload.diff && payload.diff.files > 0) {
     parts.push(`\n${formatDiffSummary(payload.diff)}`);
   }
 
