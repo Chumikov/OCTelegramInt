@@ -10,9 +10,9 @@ export interface TodoItem {
 }
 
 export interface DiffSummary {
+  files: number;
   additions: number;
   deletions: number;
-  files: number;
 }
 
 export interface PermissionEventPayload {

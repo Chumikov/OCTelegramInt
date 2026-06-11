@@ -23,8 +23,9 @@ function truncate(text: string, max: number): string {
 }
 
 function sessionHeader(title: string | undefined, project: string | undefined): string {
-  const t = title || "Без названия";
-  const p = project ? `\n📂 ${escapeHtml(project)}` : "";
+  if (!title && !project) return "";
+  const t = title || project || "";
+  const p = project && title ? `\n📂 ${escapeHtml(project)}` : "";
   return `💬 ${escapeHtml(t)}${p}`;
 }
 

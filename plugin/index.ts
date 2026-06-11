@@ -108,27 +108,48 @@ async function _server(input: PluginInput, options?: PluginOpts) {
 
   async function getSessionMeta(sessionID: string): Promise<{ title: string; project: string } | undefined> {
     const cached = sessionCache.get(sessionID);
-    if (cached && Date.now() - cached.fetchedAt < SESSION_CACHE_TTL) return cached;
+    if (cached && Date.now() - cached.fetchedAt < SESSION_CACHE_TTL) {
+      log(`getSessionMeta session=${sessionID.slice(0, 8)}... -> cached: ${cached.title}`);
+      return cached;
+    }
 
     try {
-      const resp = await client.session.get({ path: { id: sessionID } });
+      const s = client.session;
+      log(`getSessionMeta session=${sessionID.slice(0, 8)}... methods available: get=${typeof s.get}, list=${typeof s.list}, todo=${typeof s.todo}, diff=${typeof s.diff}`);
+
+      if (typeof s.get !== "function") {
+        logError(`getSessionMeta: client.session.get is NOT a function (type=${typeof s.get})`);
+        return undefined;
+      }
+
+      const resp = await s.get({ path: { id: sessionID } });
+      log(`getSessionMeta session=${sessionID.slice(0, 8)}... raw response: ${JSON.stringify(resp).slice(0, 500)}`);
+
       const data = resp?.data as { title?: string; directory?: string } | undefined;
       if (data) {
         const dirName = data.directory?.split("/").pop() || project.name || project.id;
         const meta = { title: data.title || dirName, project: dirName, fetchedAt: Date.now() };
         sessionCache.set(sessionID, meta);
+        log(`getSessionMeta session=${sessionID.slice(0, 8)}... -> title="${meta.title}" project="${meta.project}"`);
         return meta;
+      } else {
+        logError(`getSessionMeta session=${sessionID.slice(0, 8)}... -> resp.data is ${resp?.data === undefined ? 'undefined' : typeof resp.data}, resp keys: ${resp ? Object.keys(resp).join(",") : "no resp"}`);
       }
     } catch (err) {
-      logError(`getSessionMeta session=${sessionID.slice(0, 8)}... error:`, err instanceof Error ? err.message : String(err));
+      logError(`getSessionMeta session=${sessionID.slice(0, 8)}... error:`, err instanceof Error ? `${err.message}\n${err.stack}` : String(err));
     }
     return undefined;
   }
 
   async function getSessionTodos(sessionID: string) {
     try {
+      if (typeof client.session.todo !== "function") {
+        logError(`getSessionTodos: client.session.todo is NOT a function (type=${typeof client.session.todo})`);
+        return [];
+      }
       const resp = await client.session.todo({ path: { id: sessionID } });
       const data = resp?.data as Array<{ content: string; status: string; priority: string }> | undefined;
+      log(`getSessionTodos session=${sessionID.slice(0, 8)}... -> ${data?.length || 0} todos`);
       return data || [];
     } catch (err) {
       logError(`getSessionTodos session=${sessionID.slice(0, 8)}... error:`, err instanceof Error ? err.message : String(err));
@@ -138,9 +159,23 @@ async function _server(input: PluginInput, options?: PluginOpts) {
 
   async function getSessionDiff(sessionID: string) {
     try {
+      if (typeof client.session.diff !== "function") {
+        logError(`getSessionDiff: client.session.diff is NOT a function (type=${typeof client.session.diff})`);
+        return undefined;
+      }
       const resp = await client.session.diff({ path: { id: sessionID } });
-      const data = resp?.data as { additions?: number; deletions?: number; files?: number } | undefined;
-      return data;
+      const data = resp?.data as Array<{ additions?: number; deletions?: number; file?: string }> | undefined;
+      if (!data || !Array.isArray(data)) {
+        log(`getSessionDiff session=${sessionID.slice(0, 8)}... -> no data or not array`);
+        return undefined;
+      }
+      const result = { files: data.length, additions: 0, deletions: 0 };
+      for (const d of data) {
+        result.additions += d.additions || 0;
+        result.deletions += d.deletions || 0;
+      }
+      log(`getSessionDiff session=${sessionID.slice(0, 8)}... -> ${result.files} files, +${result.additions}/-${result.deletions}`);
+      return result;
     } catch (err) {
       logError(`getSessionDiff session=${sessionID.slice(0, 8)}... error:`, err instanceof Error ? err.message : String(err));
       return undefined;
@@ -304,7 +339,7 @@ async function _server(input: PluginInput, options?: PluginOpts) {
     }
   }
 
-  log("Plugin v2 loaded (API paths: /session/{id}/permissions/{permId})");
+  log("Plugin v3 loaded (enriched events: session.get, todo, diff, diagnostic logging)");
   try {
     log("Registering with bot...");
     const registered = await postToBot({
