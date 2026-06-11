@@ -5,7 +5,6 @@ import type {
   SessionErrorPayload,
   ContextMessage,
   TodoItem,
-  DiffSummary,
 } from "../shared/types.js";
 
 function escapeHtml(text: string): string {
@@ -51,10 +50,6 @@ function formatTodoList(todos: TodoItem[]): string {
     return `${icon} ${escapeHtml(t.content)}`;
   });
   return `\n\n<b>📋 Задачи:</b>\n${lines.join("\n")}`;
-}
-
-function formatDiffSummary(diff: DiffSummary): string {
-  return `📝 Файлов: ${diff.files} (add: ${diff.additions} / del: ${diff.deletions})`;
 }
 
 export function formatPermissionMessage(payload: PermissionEventPayload): string {
@@ -123,7 +118,8 @@ export function formatSessionIdleMessage(payload: SessionIdlePayload): string {
   ];
 
   if (payload.diff && payload.diff.files > 0) {
-    parts.push(`\n${formatDiffSummary(payload.diff)}`);
+    const d = payload.diff;
+    parts.push(`\n📝 Файлов: ${d.files} (add: ${d.additions} / del: ${d.deletions})`);
   }
 
   if (payload.todos && payload.todos.length > 0) {

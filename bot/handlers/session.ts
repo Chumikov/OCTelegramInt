@@ -1,22 +1,16 @@
 import { Bot, InlineKeyboard } from "grammy";
-import { addPending, addResponse, getPending } from "../state.js";
+import { addPending, addResponse } from "../state.js";
 import {
   formatSessionIdleMessage,
   formatSessionErrorMessage,
   formatReplyConfirmation,
 } from "../formatters.js";
-import type { SessionIdlePayload, SessionErrorPayload, DiffSummary } from "../../shared/types.js";
+import type { SessionIdlePayload, SessionErrorPayload } from "../../shared/types.js";
 
 export const awaitingSessionPrompt = new Map<
   string,
   { sessionID: string; chatID: number }
 >();
-
-const lastIdleData = new Map<string, { diff?: DiffSummary; chatID: number }>();
-
-export function setLastIdleData(sessionID: string, data: { diff?: DiffSummary; chatID: number }) {
-  lastIdleData.set(sessionID, data);
-}
 
 export async function handleSessionIdleEvent(
   bot: Bot,
@@ -28,9 +22,7 @@ export async function handleSessionIdleEvent(
   console.log(`[session] Idle message length=${text.length}, sending to chatID=${chatID}`);
   const keyboard = new InlineKeyboard()
     .text("▶️ Продолжить", `session:continue:${payload.sessionID}`)
-    .text("💬 Команда", `session:prompt:${payload.sessionID}`)
-    .row()
-    .text("📊 Diff", `session:diff:${payload.sessionID}`);
+    .text("💬 Команда", `session:prompt:${payload.sessionID}`);
 
   try {
     const message = await bot.api.sendMessage(chatID, text, {
@@ -48,7 +40,6 @@ export async function handleSessionIdleEvent(
       payload,
       createdAt: Date.now(),
     });
-    setLastIdleData(payload.sessionID, { diff: payload.diff, chatID: message.chat.id });
   } catch (err) {
     console.error(`[session] FAILED to send idle message:`, err);
     throw err;
@@ -116,25 +107,5 @@ export function registerSessionCallbacks(bot: Bot): void {
     awaitingSessionPrompt.set(`${ctx.from!.id}`, { sessionID, chatID: ctx.chat!.id });
     try { await ctx.answerCallbackQuery(); } catch {}
     await ctx.reply("💬 Введите команду для отправки в сессию:");
-  });
-
-  bot.callbackQuery(/^session:diff:(.+)$/, async (ctx) => {
-    const match = ctx.callbackQuery.data!.match(/^session:diff:(.+)$/)!;
-    const sessionID = match[1];
-
-    const idleData = lastIdleData.get(sessionID);
-    const pending = getPending(`idle:${sessionID}`);
-    const diff = idleData?.diff || (pending?.payload as SessionIdlePayload | undefined)?.diff;
-
-    try { await ctx.answerCallbackQuery(); } catch {}
-
-    if (diff) {
-      await ctx.reply(
-        `📊 <b>Изменения</b>\n\n📝 Файлов: ${diff.files} (add: ${diff.additions} / del: ${diff.deletions})`,
-        { parse_mode: "HTML" }
-      );
-    } else {
-      await ctx.reply("📊 Нет данных об изменениях", { parse_mode: "HTML" });
-    }
   });
 }
