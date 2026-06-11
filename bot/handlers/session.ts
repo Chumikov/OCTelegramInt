@@ -88,8 +88,13 @@ export function registerSessionCallbacks(bot: Bot): void {
   bot.callbackQuery(/^session:continue:(.+)$/, async (ctx) => {
     const match = ctx.callbackQuery.data!.match(/^session:continue:(.+)$/)!;
     const sessionID = match[1];
+    console.log(`[session] Callback continue: sessionID=${sessionID.slice(0, 8)}`);
 
-    await ctx.answerCallbackQuery({ text: "Принято" });
+    try {
+      await ctx.answerCallbackQuery({ text: "Принято" });
+    } catch (err) {
+      console.error(`[session] answerCallbackQuery error:`, err);
+    }
 
     addResponse({
       id: `sprompt:${sessionID}:continue`,
@@ -97,11 +102,15 @@ export function registerSessionCallbacks(bot: Bot): void {
       sessionID,
       text: "continue",
     });
+    console.log(`[session] Response queued: session_prompt continue for ${sessionID.slice(0, 8)}`);
 
     try {
       await ctx.editMessageText(formatReplyConfirmation("Команда 'продолжить' отправлена"), { parse_mode: "HTML" });
-    } catch {
-      await ctx.reply(formatReplyConfirmation("Команда 'продолжить' отправлена"), { parse_mode: "HTML" });
+    } catch (err) {
+      console.error(`[session] editMessageText error:`, err);
+      try {
+        await ctx.reply(formatReplyConfirmation("Команда 'продолжить' отправлена"), { parse_mode: "HTML" });
+      } catch {}
     }
   });
 
