@@ -15,7 +15,8 @@ function escapeHtml(text: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function truncate(text: string, max: number): string {
+function truncate(text: string | undefined | null, max: number): string {
+  if (!text) return "";
   if (text.length <= max) return text;
   const cut = text.slice(0, max);
   const lastSpace = cut.lastIndexOf(" ");
