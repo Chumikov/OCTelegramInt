@@ -121,7 +121,7 @@ export function registerSessionCallbacks(bot: Bot): void {
 
     if (payload?.diff) {
       await ctx.reply(
-        `📊 <b>Изменения</b>\n\n📝 Файлов: ${payload.diff.files}\n+${payload.diff.additions} / -${payload.diff.deletions}`,
+        `📊 <b>Изменения</b>\n\n📝 Файлов: ${payload.diff.files}\nAdded: ${payload.diff.additions}\nDeleted: ${payload.diff.deletions}`,
         { parse_mode: "HTML" }
       );
     } else {

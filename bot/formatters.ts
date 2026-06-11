@@ -53,7 +53,7 @@ function formatTodoList(todos: TodoItem[]): string {
 }
 
 function formatDiffSummary(diff: DiffSummary): string {
-  return `📝 Файлов: ${diff.files} (+${diff.additions}/-${diff.deletions})`;
+  return `📝 Файлов: ${diff.files} (add: ${diff.additions} / del: ${diff.deletions})`;
 }
 
 export function formatPermissionMessage(payload: PermissionEventPayload): string {
