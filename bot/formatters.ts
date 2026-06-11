@@ -15,6 +15,13 @@ function escapeHtml(text: string): string {
     .replace(/>/g, "&gt;");
 }
 
+function truncate(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > max * 0.5 ? cut.slice(0, lastSpace) : cut) + "…";
+}
+
 function sessionHeader(title: string | undefined, project: string | undefined): string {
   const t = title || "Без названия";
   const p = project ? `\n📂 ${escapeHtml(project)}` : "";
@@ -25,7 +32,7 @@ function formatContextShort(context: ContextMessage[]): string {
   if (context.length === 0) return "";
   const last = context[context.length - 1];
   const icon = last.role === "user" ? "👤" : "🤖";
-  const text = last.text.length > 200 ? last.text.slice(0, 200) + "..." : last.text;
+  const text = truncate(last.text, 200);
   return `${icon} <i>${escapeHtml(text)}</i>`;
 }
 
@@ -62,7 +69,7 @@ export function formatPermissionMessage(payload: PermissionEventPayload): string
   if (toolName) {
     parts.push(`\n🔧 <code>${escapeHtml(toolName)}</code>`);
     if (toolArgs && toolArgs !== "{}") {
-      const truncated = toolArgs.length > 400 ? toolArgs.slice(0, 400) + "..." : toolArgs;
+      const truncated = truncate(toolArgs, 400);
       parts.push(`<pre>${escapeHtml(truncated)}</pre>`);
     }
   } else {
@@ -117,7 +124,7 @@ export function formatSessionIdleMessage(payload: SessionIdlePayload): string {
     .filter((m) => m.role === "assistant")
     .pop();
   if (lastAssistantMsg) {
-    const snippet = lastAssistantMsg.text.slice(0, 200);
+    const snippet = truncate(lastAssistantMsg.text, 200);
     parts.push(`\n💬 <i>${escapeHtml(snippet)}</i>`);
   }
 

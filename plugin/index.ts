@@ -195,7 +195,7 @@ async function _server(input: PluginInput, options?: PluginOpts) {
           if (part.type === "text" && part.text) {
             result.push({
               role: (msg.info?.role || "assistant"),
-              text: part.text.slice(0, 500),
+              text: part.text.length > 500 ? part.text.slice(0, part.text.lastIndexOf(" ", 500)) + "…" : part.text,
             });
           }
         }
