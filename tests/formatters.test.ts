@@ -293,7 +293,7 @@ describe("formatSessionIdleMessage", () => {
     assert.ok(!result.includes("Файлов"));
   });
 
-  it("should include todos", () => {
+  it("should include only in_progress todos", () => {
     const payload: SessionIdlePayload = {
       type: "session.idle",
       sessionID: "ses1",
@@ -308,9 +308,22 @@ describe("formatSessionIdleMessage", () => {
     const result = formatSessionIdleMessage(payload);
     assert.ok(result.includes("📋 Задачи"));
     assert.ok(result.includes("🔄 Fix bug"));
-    assert.ok(result.includes("⬜ Write tests"));
-    assert.ok(result.includes("✅ Deploy"));
-    assert.ok(result.includes("❌ Cancelled task"));
+    assert.ok(!result.includes("Write tests"));
+    assert.ok(!result.includes("Deploy"));
+    assert.ok(!result.includes("Cancelled task"));
+  });
+
+  it("should not show todos section when only non-active todos exist", () => {
+    const payload: SessionIdlePayload = {
+      type: "session.idle",
+      sessionID: "ses1",
+      context: [],
+      todos: [
+        { content: "Done task", status: "completed", priority: "low" },
+      ],
+    };
+    const result = formatSessionIdleMessage(payload);
+    assert.ok(!result.includes("📋"));
   });
 
   it("should not include todos when empty array", () => {

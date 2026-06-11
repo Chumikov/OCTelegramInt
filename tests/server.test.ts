@@ -190,7 +190,7 @@ describe("HTTP Server", () => {
         context: [],
         session: { title: "Test Session", project: "myapp" },
         todos: [
-          { content: "Task 1", status: "pending", priority: "high" },
+          { content: "Task 1", status: "in_progress", priority: "high" },
         ],
         diff: { files: 2, additions: 15, deletions: 3 },
       }, { Authorization: "Bearer testsecret123" });

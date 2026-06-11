@@ -123,7 +123,10 @@ export function formatSessionIdleMessage(payload: SessionIdlePayload): string {
   }
 
   if (payload.todos && payload.todos.length > 0) {
-    parts.push(formatTodoList(payload.todos));
+    const active = payload.todos.filter((t) => t.status === "in_progress");
+    if (active.length > 0) {
+      parts.push(formatTodoList(active));
+    }
   }
 
   return parts.join("\n");
