@@ -1,5 +1,5 @@
 import { Bot, InlineKeyboard } from "grammy";
-import { addPending, addResponse } from "../state.js";
+import { addPending, addResponse, getPending } from "../state.js";
 import {
   formatSessionIdleMessage,
   formatSessionErrorMessage,
@@ -22,8 +22,9 @@ export async function handleSessionIdleEvent(
   console.log(`[session] Idle message length=${text.length}, sending to chatID=${chatID}`);
   const keyboard = new InlineKeyboard()
     .text("▶️ Продолжить", `session:continue:${payload.sessionID}`)
+    .text("💬 Команда", `session:prompt:${payload.sessionID}`)
     .row()
-    .text("🔄 С командой", `session:prompt:${payload.sessionID}`);
+    .text("📊 Diff", `session:diff:${payload.sessionID}`);
 
   try {
     const message = await bot.api.sendMessage(chatID, text, {
@@ -111,5 +112,23 @@ export function registerSessionCallbacks(bot: Bot): void {
     awaitingSessionPrompt.set(`${ctx.from!.id}`, { sessionID, chatID: ctx.chat!.id });
     await ctx.answerCallbackQuery({ text: "" });
     await ctx.reply("💬 Введите команду для отправки в сессию:");
+  });
+
+  bot.callbackQuery(/^session:diff:(.+)$/, async (ctx) => {
+    const match = ctx.callbackQuery.data!.match(/^session:diff:(.+)$/)!;
+    const sessionID = match[1];
+    const pending = getPending(`idle:${sessionID}`);
+    const payload = pending?.payload as SessionIdlePayload | undefined;
+
+    await ctx.answerCallbackQuery({ text: "" });
+
+    if (payload?.diff) {
+      await ctx.reply(
+        `📊 <b>Изменения в сессии</b>\n\n📝 Файлов: ${payload.diff.files}\n+${payload.diff.additions} / -${payload.diff.deletions}`,
+        { parse_mode: "HTML" }
+      );
+    } else {
+      await ctx.reply("📊 Нет данных об изменениях в этой сессии", { parse_mode: "HTML" });
+    }
   });
 }

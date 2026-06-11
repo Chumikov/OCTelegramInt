@@ -2,6 +2,10 @@ type ClientSession = {
   messages(opts: { path: { id: string }; query?: { limit?: number } }): Promise<{ data?: unknown }>;
   message(opts: { path: { id: string; messageID: string } }): Promise<{ data?: unknown }>;
   prompt(opts: { body?: { parts: Array<{ type: string; text: string }> }; path: { id: string } }): Promise<{ data?: unknown }>;
+  get(opts: { path: { id: string } }): Promise<{ data?: unknown }>;
+  list(opts?: { query?: { limit?: number } }): Promise<{ data?: unknown }>;
+  todo(opts: { path: { id: string } }): Promise<{ data?: unknown }>;
+  diff(opts: { path: { id: string } }): Promise<{ data?: unknown }>;
 };
 
 type PluginInput = {
@@ -98,6 +102,50 @@ async function _server(input: PluginInput, options?: PluginOpts) {
     pollCount: 0,
     responseCount: 0,
   };
+
+  const sessionCache = new Map<string, { title: string; project: string; fetchedAt: number }>();
+  const SESSION_CACHE_TTL = 60_000;
+
+  async function getSessionMeta(sessionID: string): Promise<{ title: string; project: string } | undefined> {
+    const cached = sessionCache.get(sessionID);
+    if (cached && Date.now() - cached.fetchedAt < SESSION_CACHE_TTL) return cached;
+
+    try {
+      const resp = await client.session.get({ path: { id: sessionID } });
+      const data = resp?.data as { title?: string; directory?: string } | undefined;
+      if (data) {
+        const dirName = data.directory?.split("/").pop() || project.name || project.id;
+        const meta = { title: data.title || dirName, project: dirName, fetchedAt: Date.now() };
+        sessionCache.set(sessionID, meta);
+        return meta;
+      }
+    } catch (err) {
+      logError(`getSessionMeta session=${sessionID.slice(0, 8)}... error:`, err instanceof Error ? err.message : String(err));
+    }
+    return undefined;
+  }
+
+  async function getSessionTodos(sessionID: string) {
+    try {
+      const resp = await client.session.todo({ path: { id: sessionID } });
+      const data = resp?.data as Array<{ content: string; status: string; priority: string }> | undefined;
+      return data || [];
+    } catch (err) {
+      logError(`getSessionTodos session=${sessionID.slice(0, 8)}... error:`, err instanceof Error ? err.message : String(err));
+      return [];
+    }
+  }
+
+  async function getSessionDiff(sessionID: string) {
+    try {
+      const resp = await client.session.diff({ path: { id: sessionID } });
+      const data = resp?.data as { additions?: number; deletions?: number; files?: number } | undefined;
+      return data;
+    } catch (err) {
+      logError(`getSessionDiff session=${sessionID.slice(0, 8)}... error:`, err instanceof Error ? err.message : String(err));
+      return undefined;
+    }
+  }
 
   async function postToBot(payload: Record<string, unknown>): Promise<boolean> {
     const payloadType = payload.type;
@@ -333,7 +381,10 @@ async function _server(input: PluginInput, options?: PluginOpts) {
                 log(`  fetch tool message: ${err instanceof Error ? err.message : String(err)}`);
               }
             }
-            const ctx = await fetchContext(p.sessionID);
+            const [ctx, sessionMeta] = await Promise.all([
+              fetchContext(p.sessionID),
+              getSessionMeta(p.sessionID),
+            ]);
             const ok = await postToBot({
               type: "permission.asked",
               requestID: p.id,
@@ -343,6 +394,7 @@ async function _server(input: PluginInput, options?: PluginOpts) {
               metadata: { ...p.metadata, toolName, toolArgs },
               always: p.always,
               context: ctx,
+              session: sessionMeta,
             });
             log(`  permission.asked sent to bot: ${ok ? "OK" : "FAILED"}`);
             break;
@@ -350,7 +402,10 @@ async function _server(input: PluginInput, options?: PluginOpts) {
           case "question.asked": {
             const qCount = p.questions?.length || 0;
             log(`  question.asked: id=${p.id} session=${p.sessionID?.slice(0, 8)}... questions=${qCount}`);
-            const ctx = await fetchContext(p.sessionID);
+            const [ctx, sessionMeta] = await Promise.all([
+              fetchContext(p.sessionID),
+              getSessionMeta(p.sessionID),
+            ]);
             const mapped = (p.questions || []).map((q: Record<string, any>) => ({
               question: q.question,
               header: q.header,
@@ -364,17 +419,27 @@ async function _server(input: PluginInput, options?: PluginOpts) {
               sessionID: p.sessionID,
               questions: mapped,
               context: ctx,
+              session: sessionMeta,
             });
             log(`  question.asked sent to bot: ${ok ? "OK" : "FAILED"}`);
             break;
           }
           case "session.idle": {
             log(`  session.idle: session=${p.sessionID?.slice(0, 8)}...`);
-            const ctx = await fetchContext(p.sessionID);
+            const [ctx, sessionMeta, todos, diff] = await Promise.all([
+              fetchContext(p.sessionID),
+              getSessionMeta(p.sessionID),
+              getSessionTodos(p.sessionID),
+              getSessionDiff(p.sessionID),
+            ]);
             const ok = await postToBot({
               type: "session.idle",
               sessionID: p.sessionID,
               context: ctx,
+              session: sessionMeta,
+              todos: todos.length > 0 ? todos : undefined,
+              diff: diff,
+              duration: p.duration,
             });
             log(`  session.idle sent to bot: ${ok ? "OK" : "FAILED"}`);
             break;
@@ -382,7 +447,10 @@ async function _server(input: PluginInput, options?: PluginOpts) {
           case "session.error": {
             const sid = p.sessionID;
             log(`  session.error: session=${sid?.slice(0, 8) || "n/a"}... error=${p.error?.name || "unknown"}`);
-            const ctx = sid ? await fetchContext(sid) : [];
+            const [ctx, sessionMeta] = await Promise.all([
+              sid ? fetchContext(sid) : Promise.resolve([]),
+              sid ? getSessionMeta(sid) : Promise.resolve(undefined),
+            ]);
             const ok = await postToBot({
               type: "session.error",
               sessionID: sid,
@@ -390,6 +458,7 @@ async function _server(input: PluginInput, options?: PluginOpts) {
                 ? { name: p.error.name, data: p.error.data }
                 : undefined,
               context: ctx,
+              session: sessionMeta,
             });
             log(`  session.error sent to bot: ${ok ? "OK" : "FAILED"}`);
             break;

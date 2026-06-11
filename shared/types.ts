@@ -1,3 +1,20 @@
+export interface SessionMeta {
+  title: string;
+  project: string;
+}
+
+export interface TodoItem {
+  content: string;
+  status: string;
+  priority: string;
+}
+
+export interface DiffSummary {
+  additions: number;
+  deletions: number;
+  files: number;
+}
+
 export interface PermissionEventPayload {
   type: "permission.asked";
   requestID: string;
@@ -7,6 +24,7 @@ export interface PermissionEventPayload {
   metadata: Record<string, unknown>;
   always: string[];
   context: ContextMessage[];
+  session?: SessionMeta;
 }
 
 export interface QuestionEventPayload {
@@ -21,12 +39,17 @@ export interface QuestionEventPayload {
     custom?: boolean;
   }>;
   context: ContextMessage[];
+  session?: SessionMeta;
 }
 
 export interface SessionIdlePayload {
   type: "session.idle";
   sessionID: string;
   context: ContextMessage[];
+  session?: SessionMeta;
+  todos?: TodoItem[];
+  diff?: DiffSummary;
+  duration?: number;
 }
 
 export interface SessionErrorPayload {
@@ -37,6 +60,7 @@ export interface SessionErrorPayload {
     data?: { message?: string };
   };
   context: ContextMessage[];
+  session?: SessionMeta;
 }
 
 export interface RegistrationPayload {
