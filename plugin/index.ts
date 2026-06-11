@@ -261,6 +261,41 @@ async function _server(input: PluginInput, options?: PluginOpts) {
             logError(`  -> session prompt error:`, err instanceof Error ? err.message : String(err));
           }
           break;
+        case "command":
+          log(`  -> command ${resp.command} chatID=${resp.chatID}`);
+          try {
+            let resultData: unknown = null;
+            if (resp.command === "sessions") {
+              const listResp = await client.session.list({ query: { limit: 10 } });
+              const items = listResp?.data as Array<Record<string, unknown>> | undefined;
+              resultData = (items || []).map((s) => ({
+                id: s.id,
+                title: s.title,
+                directory: s.directory,
+                time: s.time,
+              }));
+            } else if (resp.command === "todo" && resp.sessionID) {
+              resultData = await getSessionTodos(resp.sessionID);
+            }
+            await postToBot({
+              type: "command_result",
+              commandID: resp.id,
+              command: resp.command,
+              chatID: resp.chatID,
+              data: resultData,
+            });
+            log(`  -> command ${resp.command} result sent OK`);
+          } catch (err) {
+            logError(`  -> command ${resp.command} error:`, err instanceof Error ? err.message : String(err));
+            await postToBot({
+              type: "command_result",
+              commandID: resp.id,
+              command: resp.command,
+              chatID: resp.chatID,
+              data: null,
+            });
+          }
+          break;
         default:
           logError(`  -> unknown response type: ${resp.type}`);
       }

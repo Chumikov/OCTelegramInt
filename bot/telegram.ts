@@ -6,6 +6,17 @@ import { registerSessionCallbacks, awaitingSessionPrompt } from "./handlers/sess
 import { addResponse, removePending, getPending } from "./state.js";
 import { formatReplyConfirmation } from "./formatters.js";
 
+let currentSessionID = "";
+let lastChatID = 0;
+
+export function setCurrentSession(id: string): void {
+  currentSessionID = id;
+}
+
+export function setLastChatID(id: number): void {
+  lastChatID = id;
+}
+
 export function createBot(): Bot {
   const botOptions: Record<string, any> = {};
   if (config.telegramApiRoot) {
@@ -28,7 +39,37 @@ export function createBot(): Bot {
 
   bot.command("status", async (ctx) => {
     if (ctx.chat?.id?.toString() !== config.allowedChatID) return;
-    await ctx.reply("✅ Бот активен и принимает ответы.", { parse_mode: "HTML" });
+    const sess = currentSessionID ? `\n📋 Сессия: ${currentSessionID.slice(0, 8)}...` : "\n📋 Нет активной сессии";
+    await ctx.reply(`✅ Бот активен.${sess}`, { parse_mode: "HTML" });
+  });
+
+  bot.command("sessions", async (ctx) => {
+    if (ctx.chat?.id?.toString() !== config.allowedChatID) return;
+    lastChatID = ctx.chat.id;
+    addResponse({
+      id: `cmd:sessions:${Date.now()}`,
+      type: "command",
+      command: "sessions",
+      chatID: ctx.chat.id,
+    });
+    await ctx.reply("📋 Запрашиваю список сессий...");
+  });
+
+  bot.command("todo", async (ctx) => {
+    if (ctx.chat?.id?.toString() !== config.allowedChatID) return;
+    if (!currentSessionID) {
+      await ctx.reply("❌ Нет активной сессии");
+      return;
+    }
+    lastChatID = ctx.chat.id;
+    addResponse({
+      id: `cmd:todo:${Date.now()}`,
+      type: "command",
+      command: "todo",
+      sessionID: currentSessionID,
+      chatID: ctx.chat.id,
+    });
+    await ctx.reply("📋 Запрашиваю задачи...");
   });
 
   registerPermissionCallbacks(bot);

@@ -158,3 +158,43 @@ export function formatReplyConfirmation(action: string): string {
 export function formatError(text: string): string {
   return `❌ <b>Ошибка:</b> ${escapeHtml(text)}`;
 }
+
+export function formatSessionsList(data: unknown): string {
+  const sessions = data as Array<{ id: string; title?: string; directory?: string; time?: { created: number; updated: number } }> | null;
+  if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
+    return "📋 <b>Сессии</b>\n\nНет активных сессий";
+  }
+  const lines = sessions.slice(0, 10).map((s, i) => {
+    const title = s.title || s.directory?.split("/").pop() || "Без названия";
+    const ago = s.time?.created ? timeAgo(s.time.created) : "";
+    return `${i + 1}. ${escapeHtml(title)}${ago ? ` (${ago})` : ""}`;
+  });
+  return `📋 <b>Сессии (${sessions.length})</b>\n\n${lines.join("\n")}`;
+}
+
+export function formatTodoResult(data: unknown): string {
+  const todos = data as Array<{ content: string; status: string; priority: string }> | null;
+  if (!todos || !Array.isArray(todos) || todos.length === 0) {
+    return "📋 <b>Todo</b>\n\nНет задач";
+  }
+  const statusIcons: Record<string, string> = {
+    completed: "✅",
+    in_progress: "🔄",
+    pending: "⬜",
+    cancelled: "❌",
+  };
+  const lines = todos.map((t) => {
+    const icon = statusIcons[t.status] || "⬜";
+    const prio = t.priority === "high" ? "🔴" : t.priority === "medium" ? "🟡" : "🟢";
+    return `${icon} ${prio} ${escapeHtml(t.content)}`;
+  });
+  return `📋 <b>Todo (${todos.length})</b>\n\n${lines.join("\n")}`;
+}
+
+function timeAgo(ts: number): string {
+  const sec = Math.floor((Date.now() - ts) / 1000);
+  if (sec < 60) return "только что";
+  if (sec < 3600) return `${Math.floor(sec / 60)} мин назад`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)} ч назад`;
+  return `${Math.floor(sec / 86400)} д назад`;
+}

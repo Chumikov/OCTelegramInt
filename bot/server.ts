@@ -1,9 +1,11 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
-import type { PluginEvent } from "../shared/types.js";
+import type { PluginEvent, CommandResultPayload } from "../shared/types.js";
 import { registerServer } from "./opencode-client.js";
+import { setCurrentSession } from "./telegram.js";
 import { handlePermissionEvent } from "./handlers/permission.js";
 import { handleQuestionEvent } from "./handlers/question.js";
 import { handleSessionIdleEvent, handleSessionErrorEvent } from "./handlers/session.js";
+import { formatSessionsList, formatTodoResult } from "./formatters.js";
 import { getAllResponses, ackResponse } from "./state.js";
 import type { Bot } from "grammy";
 import { config } from "../config.js";
@@ -127,23 +129,44 @@ export function createEventServer(bot: Bot) {
 
           case "permission.asked":
             console.log(`[server] Permission request: ${event.requestID} (${event.permission})`);
+            setCurrentSession(event.sessionID);
             await handlePermissionEvent(bot, chatID, event);
             break;
 
           case "question.asked":
             console.log(`[server] Question request: ${event.requestID}`);
+            setCurrentSession(event.sessionID);
             await handleQuestionEvent(bot, chatID, event);
             break;
 
           case "session.idle":
             console.log(`[server] Session idle: ${event.sessionID}`);
+            setCurrentSession(event.sessionID);
             await handleSessionIdleEvent(bot, chatID, event);
             break;
 
           case "session.error":
             console.log(`[server] Session error: ${event.sessionID || "unknown"}`);
+            if (event.sessionID) setCurrentSession(event.sessionID);
             await handleSessionErrorEvent(bot, chatID, event);
             break;
+
+          case "command_result": {
+            const cmd = event as CommandResultPayload;
+            console.log(`[server] Command result: ${cmd.command} id=${cmd.commandID}`);
+            try {
+              if (cmd.command === "sessions") {
+                const text = formatSessionsList(cmd.data);
+                await bot.api.sendMessage(cmd.chatID, text, { parse_mode: "HTML" });
+              } else if (cmd.command === "todo") {
+                const text = formatTodoResult(cmd.data);
+                await bot.api.sendMessage(cmd.chatID, text, { parse_mode: "HTML" });
+              }
+            } catch (err) {
+              console.error(`[server] Command result handler error:`, err);
+            }
+            break;
+          }
 
           default:
             console.log(`[server] Unknown event type: ${(event as any).type}`);

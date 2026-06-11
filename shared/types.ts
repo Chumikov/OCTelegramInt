@@ -78,7 +78,8 @@ export type PluginEvent =
   | QuestionEventPayload
   | SessionIdlePayload
   | SessionErrorPayload
-  | RegistrationPayload;
+  | RegistrationPayload
+  | CommandResultPayload;
 
 export interface ContextMessage {
   role: "user" | "assistant";
@@ -125,8 +126,25 @@ export interface BotResponseSessionPrompt {
   text: string;
 }
 
+export interface BotResponseCommand {
+  id: string;
+  type: "command";
+  command: "sessions" | "todo";
+  sessionID?: string;
+  chatID: number;
+}
+
 export type BotResponse =
   | BotResponsePermission
   | BotResponseQuestionReply
   | BotResponseQuestionReject
-  | BotResponseSessionPrompt;
+  | BotResponseSessionPrompt
+  | BotResponseCommand;
+
+export interface CommandResultPayload {
+  type: "command_result";
+  commandID: string;
+  command: "sessions" | "todo";
+  chatID: number;
+  data: unknown;
+}
