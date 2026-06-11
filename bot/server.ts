@@ -4,7 +4,7 @@ import { registerServer } from "./opencode-client.js";
 import { setCurrentSession } from "./telegram.js";
 import { handlePermissionEvent } from "./handlers/permission.js";
 import { handleQuestionEvent } from "./handlers/question.js";
-import { handleSessionIdleEvent, handleSessionErrorEvent } from "./handlers/session.js";
+import { handleSessionIdleEvent, handleSessionErrorEvent, setLastIdleData } from "./handlers/session.js";
 import { formatSessionsList, formatTodoResult } from "./formatters.js";
 import { getAllResponses, ackResponse } from "./state.js";
 import type { Bot } from "grammy";
@@ -142,6 +142,7 @@ export function createEventServer(bot: Bot) {
           case "session.idle":
             console.log(`[server] Session idle: ${event.sessionID}`);
             setCurrentSession(event.sessionID);
+            setLastIdleData(event.sessionID, { diff: event.diff, chatID });
             await handleSessionIdleEvent(bot, chatID, event);
             break;
 

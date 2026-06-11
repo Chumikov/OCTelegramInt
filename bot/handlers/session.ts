@@ -5,12 +5,18 @@ import {
   formatSessionErrorMessage,
   formatReplyConfirmation,
 } from "../formatters.js";
-import type { SessionIdlePayload, SessionErrorPayload } from "../../shared/types.js";
+import type { SessionIdlePayload, SessionErrorPayload, DiffSummary } from "../../shared/types.js";
 
 export const awaitingSessionPrompt = new Map<
   string,
   { sessionID: string; chatID: number }
 >();
+
+const lastIdleData = new Map<string, { diff?: DiffSummary; chatID: number }>();
+
+export function setLastIdleData(sessionID: string, data: { diff?: DiffSummary; chatID: number }) {
+  lastIdleData.set(sessionID, data);
+}
 
 export async function handleSessionIdleEvent(
   bot: Bot,
@@ -42,6 +48,7 @@ export async function handleSessionIdleEvent(
       payload,
       createdAt: Date.now(),
     });
+    setLastIdleData(payload.sessionID, { diff: payload.diff, chatID: message.chat.id });
   } catch (err) {
     console.error(`[session] FAILED to send idle message:`, err);
     throw err;
@@ -114,14 +121,16 @@ export function registerSessionCallbacks(bot: Bot): void {
   bot.callbackQuery(/^session:diff:(.+)$/, async (ctx) => {
     const match = ctx.callbackQuery.data!.match(/^session:diff:(.+)$/)!;
     const sessionID = match[1];
+
+    const idleData = lastIdleData.get(sessionID);
     const pending = getPending(`idle:${sessionID}`);
-    const payload = pending?.payload as SessionIdlePayload | undefined;
+    const diff = idleData?.diff || (pending?.payload as SessionIdlePayload | undefined)?.diff;
 
     try { await ctx.answerCallbackQuery(); } catch {}
 
-    if (payload?.diff) {
+    if (diff) {
       await ctx.reply(
-        `📊 <b>Изменения</b>\n\n📝 Файлов: ${payload.diff.files}\nAdded: ${payload.diff.additions}\nDeleted: ${payload.diff.deletions}`,
+        `📊 <b>Изменения</b>\n\n📝 Файлов: ${diff.files} (add: ${diff.additions} / del: ${diff.deletions})`,
         { parse_mode: "HTML" }
       );
     } else {

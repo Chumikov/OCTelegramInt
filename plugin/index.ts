@@ -425,6 +425,11 @@ async function _server(input: PluginInput, options?: PluginOpts) {
       },
     },
     event: async ({ event }: { event: { type: string; properties: Record<string, any> } }) => {
+      const skip = new Set([
+        "message.part.delta", "message.part.updated", "message.created", "message.updated",
+        "session.updated", "session.diff", "session.status",
+      ]);
+      if (skip.has(event.type)) return;
       log(`Event received: type=${event.type}`);
       try {
         const p = event.properties;
@@ -542,3 +547,5 @@ async function _server(input: PluginInput, options?: PluginOpts) {
     },
   };
 }
+
+

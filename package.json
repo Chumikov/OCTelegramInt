@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "bot": "npx tsx bot/index.ts",
-    "bot:dev": "npx tsx --watch bot/index.ts"
+    "bot:dev": "npx tsx --watch bot/index.ts",
+    "test": "npx tsx --test tests/*.test.ts",
+    "test:formatters": "npx tsx --test tests/formatters.test.ts",
+    "test:state": "npx tsx --test tests/state.test.ts",
+    "test:server": "npx tsx --test tests/server.test.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
