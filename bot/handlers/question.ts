@@ -56,10 +56,9 @@ export function registerQuestionCallbacks(bot: Bot): void {
     const requestID = match[1];
     const optIndex = parseInt(match[2], 10);
 
-    await ctx.answerCallbackQuery({ text: "Принято" });
-
     const pending = getPending(requestID);
     if (!pending) {
+      try { await ctx.answerCallbackQuery(); } catch {}
       await safeEdit(ctx, formatError("Запрос не найден или устарел"));
       return;
     }
@@ -67,7 +66,7 @@ export function registerQuestionCallbacks(bot: Bot): void {
     const payload = pending.payload as QuestionEventPayload;
     const selectedLabel = payload.questions?.[0]?.options[optIndex]?.label;
     if (!selectedLabel) {
-      await ctx.answerCallbackQuery({ text: "Ошибка: опция не найдена" });
+      try { await ctx.answerCallbackQuery(); } catch {}
       return;
     }
 
@@ -80,6 +79,7 @@ export function registerQuestionCallbacks(bot: Bot): void {
     });
     removePending(requestID);
 
+    try { await ctx.answerCallbackQuery(); } catch {}
     await safeEdit(ctx, formatReplyConfirmation(`Выбрано: ${selectedLabel}`));
   });
 
@@ -88,7 +88,7 @@ export function registerQuestionCallbacks(bot: Bot): void {
     const requestID = match[1];
 
     awaitingCustomAnswer.set(`${ctx.from!.id}`, { requestID, chatID: ctx.chat!.id });
-    await ctx.answerCallbackQuery({ text: "" });
+    try { await ctx.answerCallbackQuery(); } catch {}
     await ctx.reply("✍️ Введите свой ответ текстом (без команды /):");
   });
 
@@ -96,10 +96,9 @@ export function registerQuestionCallbacks(bot: Bot): void {
     const match = ctx.callbackQuery.data!.match(/^q:reject:(.+)$/)!;
     const requestID = match[1];
 
-    await ctx.answerCallbackQuery({ text: "Принято" });
-
     const pending = getPending(requestID);
     if (!pending) {
+      try { await ctx.answerCallbackQuery(); } catch {}
       await safeEdit(ctx, formatError("Запрос не найден или устарел"));
       return;
     }
@@ -112,6 +111,7 @@ export function registerQuestionCallbacks(bot: Bot): void {
     });
     removePending(requestID);
 
+    try { await ctx.answerCallbackQuery(); } catch {}
     await safeEdit(ctx, formatReplyConfirmation("Вопрос отклонён"));
   });
 }

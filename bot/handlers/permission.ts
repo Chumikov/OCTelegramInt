@@ -49,8 +49,6 @@ export function registerPermissionCallbacks(bot: Bot): void {
     const action = match[1] as "once" | "always" | "reject";
     const requestID = match[2];
 
-    await ctx.answerCallbackQuery({ text: "Принято" });
-
     const pending = getPending(requestID);
 
     addResponse({
@@ -60,6 +58,8 @@ export function registerPermissionCallbacks(bot: Bot): void {
       sessionID: pending?.sessionID || "",
       reply: action,
     });
+
+    try { await ctx.answerCallbackQuery(); } catch {}
 
     const labels: Record<string, string> = {
       once: "Разрешено один раз",

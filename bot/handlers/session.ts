@@ -90,12 +90,6 @@ export function registerSessionCallbacks(bot: Bot): void {
     const sessionID = match[1];
     console.log(`[session] Callback continue: sessionID=${sessionID.slice(0, 8)}`);
 
-    try {
-      await ctx.answerCallbackQuery({ text: "Принято" });
-    } catch (err) {
-      console.error(`[session] answerCallbackQuery error:`, err);
-    }
-
     addResponse({
       id: `sprompt:${sessionID}:continue`,
       type: "session_prompt",
@@ -104,14 +98,8 @@ export function registerSessionCallbacks(bot: Bot): void {
     });
     console.log(`[session] Response queued: session_prompt continue for ${sessionID.slice(0, 8)}`);
 
-    try {
-      await ctx.editMessageText(formatReplyConfirmation("Команда 'продолжить' отправлена"), { parse_mode: "HTML" });
-    } catch (err) {
-      console.error(`[session] editMessageText error:`, err);
-      try {
-        await ctx.reply(formatReplyConfirmation("Команда 'продолжить' отправлена"), { parse_mode: "HTML" });
-      } catch {}
-    }
+    try { await ctx.answerCallbackQuery(); } catch {}
+    try { await ctx.editMessageText(formatReplyConfirmation("Продолжить — отправлено"), { parse_mode: "HTML" }); } catch {}
   });
 
   bot.callbackQuery(/^session:prompt:(.+)$/, async (ctx) => {
@@ -119,7 +107,7 @@ export function registerSessionCallbacks(bot: Bot): void {
     const sessionID = match[1];
 
     awaitingSessionPrompt.set(`${ctx.from!.id}`, { sessionID, chatID: ctx.chat!.id });
-    await ctx.answerCallbackQuery({ text: "" });
+    try { await ctx.answerCallbackQuery(); } catch {}
     await ctx.reply("💬 Введите команду для отправки в сессию:");
   });
 
@@ -129,15 +117,15 @@ export function registerSessionCallbacks(bot: Bot): void {
     const pending = getPending(`idle:${sessionID}`);
     const payload = pending?.payload as SessionIdlePayload | undefined;
 
-    await ctx.answerCallbackQuery({ text: "" });
+    try { await ctx.answerCallbackQuery(); } catch {}
 
     if (payload?.diff) {
       await ctx.reply(
-        `📊 <b>Изменения в сессии</b>\n\n📝 Файлов: ${payload.diff.files}\n+${payload.diff.additions} / -${payload.diff.deletions}`,
+        `📊 <b>Изменения</b>\n\n📝 Файлов: ${payload.diff.files}\n+${payload.diff.additions} / -${payload.diff.deletions}`,
         { parse_mode: "HTML" }
       );
     } else {
-      await ctx.reply("📊 Нет данных об изменениях в этой сессии", { parse_mode: "HTML" });
+      await ctx.reply("📊 Нет данных об изменениях", { parse_mode: "HTML" });
     }
   });
 }
